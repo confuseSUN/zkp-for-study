@@ -89,6 +89,7 @@ mod test_kzg {
         kzg_comm(srs, max_degree, &mut rng);
     }
 
+    #[ignore = "git lfs disable"]
     #[test]
     fn test_kzg_comm_with_public_srs() {
         let max_degree = 20;
