@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "kzg"
+]
+
+
+[patch.crates-io]
+ark-std = { git = "https://github.com/arkworks-rs/std" }
+pub-srs = { git =  "https://github.com/confuseSUN/srs" }
