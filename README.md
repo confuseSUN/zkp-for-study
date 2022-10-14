@@ -1,2 +1,2 @@
 # KZG10 
-https://www.iacr.org/archive/asiacrypt2010/6477178/6477178.pdf
+https://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
