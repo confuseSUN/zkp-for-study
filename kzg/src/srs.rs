@@ -1,8 +1,7 @@
-use std::ops::MulAssign;
 use ark_ec::ProjectiveCurve;
 use ark_ff::{One, PrimeField, UniformRand};
 use ark_std::rand::Rng;
-
+use std::ops::MulAssign;
 
 use crate::{g1_base, g2_base, Scalar, G1, G2};
 

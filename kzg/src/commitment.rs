@@ -1,5 +1,8 @@
+use ark_bls12_381::g1::Parameters as G1_Parameters;
 use ark_bls12_381::Bls12_381;
-use ark_ec::{PairingEngine, ProjectiveCurve};
+use ark_ec::{
+    msm::VariableBaseMSM, short_weierstrass_jacobian::GroupAffine, PairingEngine, ProjectiveCurve,
+};
 use ark_ff::{One, PrimeField};
 use ark_poly::{univariate::DenseOrSparsePolynomial, Polynomial, UVPolynomial};
 use std::ops::{Neg, Sub};
@@ -23,16 +26,34 @@ impl KZGCommitmentScheme<'_> {
     pub fn commit(&self, poly: &Poly) -> G1 {
         assert!(self.max_degree() >= poly.degree());
 
-        let g1 = &self.0.g1;
-        let coefs = &poly.coeffs;
-
-        // The msm(Multi-scalar multiplication) fast algorithm should be used.
-        let commitment = coefs
+        let g1 = self
+            .0
+            .g1
             .iter()
-            .zip(g1.iter())
-            .map(|(coef, g)| g.mul(coef.into_repr()))
-            .sum::<G1>();
+            .map(|x| x.into_affine())
+            .collect::<Vec<GroupAffine<G1_Parameters>>>();
+        let (num_leading_zeros, coeffs) = Self::skip_leading_zeros_and_convert_to_bigints(poly);
+        let commitment = VariableBaseMSM::multi_scalar_mul(&g1[num_leading_zeros..], &coeffs);
+
         commitment
+    }
+
+    fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(
+        p: &P,
+    ) -> (usize, Vec<F::BigInt>) {
+        let mut num_leading_zeros = 0;
+        while num_leading_zeros < p.coeffs().len() && p.coeffs()[num_leading_zeros].is_zero() {
+            num_leading_zeros += 1;
+        }
+        let coeffs = Self::convert_to_bigints(&p.coeffs()[num_leading_zeros..]);
+        (num_leading_zeros, coeffs)
+    }
+
+    fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
+        let coeffs = ark_std::cfg_iter!(p)
+            .map(|s| s.into_repr())
+            .collect::<Vec<_>>();
+        coeffs
     }
 
     pub fn prove(&self, poly: &Poly, z: Scalar) -> KZGCommitmentProof {
