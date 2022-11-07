@@ -8,15 +8,13 @@ use ark_poly::{univariate::DenseOrSparsePolynomial, Polynomial, UVPolynomial};
 use ark_std::rand::Rng;
 use std::ops::{AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use crate::{srs::SRS, Scalar, G1};
+use crate::{srs::SRS, Poly, Scalar, G1};
 
-type Poly = ark_poly::polynomial::univariate::DensePolynomial<Scalar>;
-
-pub struct KZGCommitmentScheme<'a>(&'a SRS);
+pub struct KZGCommitmentScheme<'a>(pub &'a SRS);
 
 #[derive(Debug, Clone)]
 pub struct KZGCommitmentProof {
-    opening_value: Scalar,
+    opening_values: Vec<Scalar>,
     comm_h: G1,
 }
 
@@ -73,7 +71,43 @@ impl KZGCommitmentScheme<'_> {
         let comm_h = self.commit(&quotient);
 
         KZGCommitmentProof {
-            opening_value,
+            opening_values: vec![opening_value],
+            comm_h,
+        }
+    }
+
+    pub fn batch_prove(
+        &self,
+        polys: &[Poly],
+        z: &Scalar,
+        _challenge: &Scalar,
+    ) -> KZGCommitmentProof {
+        //let mut v = Scalar::one();
+        let mut dividend_sum = Poly::default();
+        let mut opening_values = vec![];
+        for poly in polys.iter() {
+            let opening_value = poly.evaluate(z);
+            opening_values.push(opening_value);
+            let dividend = poly.sub(&Poly::from_coefficients_slice(&[opening_value]));
+            //  let dividend = dividend.mul(v);
+            dividend_sum.add_assign(&dividend);
+            //  v.mul_assign(challenge);
+        }
+
+        let divisor = Poly::from_coefficients_slice(&[z.neg(), Scalar::one()]);
+
+        let (quotient, remainder) = DenseOrSparsePolynomial::divide_with_q_and_r(
+            &(&dividend_sum).into(),
+            &(&divisor).into(),
+        )
+        .unwrap();
+
+        assert!(remainder.is_empty());
+
+        let comm_h = self.commit(&quotient);
+
+        KZGCommitmentProof {
+            opening_values,
             comm_h,
         }
     }
@@ -84,7 +118,7 @@ impl KZGCommitmentScheme<'_> {
         let g2_r = self.0.g2[1];
 
         let left = Bls12_381::pairing(
-            poly_comm.sub(g1_base.mul(proof.opening_value.into_repr())),
+            poly_comm.sub(g1_base.mul(proof.opening_values[0].into_repr())),
             g2_base,
         );
         let right = Bls12_381::pairing(proof.comm_h, g2_r.sub(g2_base.mul(z.into_repr())));
@@ -94,8 +128,8 @@ impl KZGCommitmentScheme<'_> {
 
     pub fn batch_verify<R: Rng>(
         &self,
-        poly_comms: &[G1],
-        proofs: &[KZGCommitmentProof],
+        poly_comms: &[Vec<G1>],
+        proofs: &[&KZGCommitmentProof],
         zs: &[Scalar],
         rng: &mut R,
     ) -> bool {
@@ -105,20 +139,25 @@ impl KZGCommitmentScheme<'_> {
 
         let mut r = Scalar::rand(rng);
         let mut left_0 = G1::default();
-        left_0.add_assign(&poly_comms[0]);
-        left_0.sub_assign(g1_base.mul(&proofs[0].opening_value.into_repr()));
+        left_0.add_assign(&poly_comms[0].iter().sum::<G1>());
+        left_0
+            .sub_assign(g1_base.mul(&proofs[0].opening_values.iter().sum::<Scalar>().into_repr()));
         left_0.add_assign(proofs[0].comm_h.mul(&zs[0].into_repr()));
 
         let mut right_0 = G1::default();
         right_0.add_assign(&proofs[0].comm_h);
-
         for ((poly_comm, proof), z) in poly_comms.iter().zip(proofs.iter()).zip(zs.iter()).skip(1) {
-            left_0.add_assign(poly_comm.mul(&r.into_repr()));
-            left_0.sub_assign(g1_base.mul(&proof.opening_value.into_repr()).mul(&r.into_repr()));
+            left_0.add_assign(poly_comm.iter().sum::<G1>().mul(&r.into_repr()));
+            let opening_values_sum = proof.opening_values.iter().sum::<Scalar>();
+            left_0.sub_assign(
+                g1_base
+                    .mul(&opening_values_sum.into_repr())
+                    .mul(&r.into_repr()),
+            );
             left_0.add_assign(proof.comm_h.mul(z.mul(&r).into_repr()));
 
             right_0.add_assign(&proof.comm_h.mul(&r.into_repr()));
-           
+
             r.mul_assign(&r.clone());
         }
 
@@ -176,6 +215,7 @@ mod test_kzg {
     #[test]
     fn test_batch_kzg_comm() {
         let max_degree = 20;
+        let batch_size = 5;
         let mut rng = test_rng();
         let srs = SRS::new(max_degree, &mut rng);
         let kzg_comm_scheme = KZGCommitmentScheme(&srs);
@@ -188,8 +228,8 @@ mod test_kzg {
         assert!(is_ok);
 
         let is_ok = kzg_comm_scheme.batch_verify(
-            &[poly_comm1, poly_comm2],
-            &[proof1.clone(), proof2.clone()],
+            &[vec![poly_comm1], vec![poly_comm2]],
+            &[&proof1, &proof2],
             &[z1, z2],
             &mut rng,
         );
@@ -199,11 +239,25 @@ mod test_kzg {
         let is_ok = kzg_comm_scheme.verify(&poly_comm3, &proof3, &z3);
         assert!(is_ok);
 
-
         let is_ok = kzg_comm_scheme.batch_verify(
-            &[poly_comm1, poly_comm2,poly_comm3],
-            &[proof1, proof2, proof3],
-            &[z1, z2,z3],
+            &[vec![poly_comm1], vec![poly_comm2], vec![poly_comm3]],
+            &[&proof1, &proof2, &proof3.clone()],
+            &[z1, z2, z3],
+            &mut rng,
+        );
+        assert!(is_ok);
+
+        let (poly_comm4, proof4, z4) =
+            batch_kzg_comm(&kzg_comm_scheme, max_degree, batch_size, &mut rng);
+        let is_ok = kzg_comm_scheme.batch_verify(
+            &[
+                vec![poly_comm1],
+                vec![poly_comm2],
+                vec![poly_comm3],
+                poly_comm4,
+            ],
+            &[&proof1, &proof2.clone(), &proof3.clone(), &proof4],
+            &[z1, z2, z3, z4],
             &mut rng,
         );
         assert!(is_ok);
@@ -227,5 +281,34 @@ mod test_kzg {
         let proof = kzg_comm_scheme.prove(&poly, z);
 
         (poly_comm, proof, z)
+    }
+
+    fn batch_kzg_comm<R: Rng>(
+        kzg_comm_scheme: &KZGCommitmentScheme,
+        max_degree: usize,
+        batch_size: usize,
+        rng: &mut R,
+    ) -> (Vec<G1>, KZGCommitmentProof, Scalar) {
+        let mut polys = vec![];
+        let mut poly_comms = vec![];
+        for _ in 0..batch_size {
+            let mut coefs = Vec::new();
+            for _ in 0..max_degree + 1 {
+                let coef = Scalar::rand(rng);
+                coefs.push(coef);
+            }
+
+            let poly = Poly::from_coefficients_vec(coefs);
+            let poly_comm = kzg_comm_scheme.commit(&poly);
+
+            polys.push(poly);
+            poly_comms.push(poly_comm);
+        }
+
+        let z = Scalar::rand(rng);
+        let challenge = Scalar::rand(rng);
+        let proof = kzg_comm_scheme.batch_prove(&polys, &z, &challenge);
+
+        (poly_comms, proof, z)
     }
 }
