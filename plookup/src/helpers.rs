@@ -184,6 +184,7 @@ pub fn compute_z_poly(
     let gamma_mul_beta_plus_one = gamma.mul(&beta_plus_one);
 
     for i in 0..n {
+        // numerator = (\beta + 1) * (\gamma + f_i) * (\gamma * (\beta + 1) + t_i + \beta * t_{i+1})
         numerator.mul_assign(beta_plus_one);
         numerator.mul_assign(gamma.add(f_table.0[i]));
         numerator.mul_assign(
@@ -192,6 +193,7 @@ pub fn compute_z_poly(
                 .add(beta.mul(t_table.0[i + 1])),
         );
 
+        // denominator = (\gamma * (\beta + 1) + h1_i + \beta * h1_{i+1}) * (\gamma * (\beta + 1) + h2_i + \beta * h2_{i+1})
         let term1 = gamma_mul_beta_plus_one
             .add(h1_table.0[i])
             .add(beta.mul(h1_table.0[i + 1]));

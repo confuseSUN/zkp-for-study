@@ -35,7 +35,7 @@ pub(super) fn prove(
     let f_comm = kzg_comm_scheme.commit(&f_poly);
     transcript.append_commitent(&f_comm);
 
-    // 2.Compute two helper polynomial(h1, h2) commit them.
+    // 2.Compute two helper polynomial(h1, h2) and commit them.
     let n = sorted_table.size() / 2;
     let h1_table = SampleTable::from_scalar(sorted_table.0[..=n].to_vec());
     let h1_coefs = domain.ifft(&h1_table.0);

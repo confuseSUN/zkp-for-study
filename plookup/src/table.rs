@@ -47,13 +47,18 @@ impl SampleTable {
         }
     }
 
-    pub fn sort_by(&mut self, sorted_table: &Self) -> SampleTable {
-        let eles = vec![self.0.last().unwrap().to_owned(); sorted_table.size() - 1 - self.size()];
+    /// let f = self,
+    /// let t = t_table,
+    ///
+    /// first, we should do is make sure that f is a subset of t,
+    /// second, the return table is (f, t) sorted by t.    
+    pub fn sort_by(&mut self, t_table: &Self) -> SampleTable {
+        let eles = vec![self.0.last().unwrap().to_owned(); t_table.size() - 1 - self.size()];
         self.0.extend(eles);
 
-        let mut sorted = sorted_table.clone();
+        let mut sorted = t_table.clone();
         for x in self.0.iter() {
-            if !sorted_table.0.contains(x) {
+            if !t_table.0.contains(x) {
                 panic!("Current prover's table is not a subset of look up table");
             }
 
@@ -88,14 +93,25 @@ impl LookUpTable {
     }
 
     pub fn read_from_u64(&mut self, f: u64) {
-        self.f_table.push(Scalar::from(f));
+        let x = Scalar::from(f);
+        if !self.f_table.contains(&x) {
+            self.f_table.push(x);
+        }
     }
 
     pub fn read_from_scalar(&mut self, scalar: Scalar) {
-        self.f_table.push(scalar);
+        if !self.f_table.contains(&scalar) {
+            self.f_table.push(scalar);
+        }
     }
 
     pub fn prove(&self, kzg_comm_scheme: &KZGCommitmentScheme) -> PlookUpProof {
+        for f in self.f_table.iter() {
+            if !self.t_table.0.contains(f) {
+                panic!("Current prover's table is not a subset of look up table");
+            }
+        }
+
         let t_preprocess_table = self.t_table.preprocess(kzg_comm_scheme, &self.domain);
         let f_table = SampleTable::from_scalar(self.f_table.clone());
 

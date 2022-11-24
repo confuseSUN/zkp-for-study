@@ -10,6 +10,8 @@ fn test_plookup() {
     look.read_from_u64(24);
     look.read_from_u64(21);
     look.read_from_u64(56);
+    look.read_from_u64(56);
+    look.read_from_u64(56);
 
     let mut rng = test_rng();
     let max_degree = 20;
