@@ -1,8 +1,8 @@
 use ark_ff::Zero;
 use ark_poly::{EvaluationDomain, Polynomial, Radix2EvaluationDomain, UVPolynomial};
+use kzg::{commitment::KZGCommitmentScheme, Poly, Scalar};
 use merlin::Transcript;
 use std::ops::Mul;
-use study_kzg::{commitment::KZGCommitmentScheme, Poly, Scalar};
 
 use crate::{
     helpers::{compute_r_poly, compute_t_poly, compute_z_poly},

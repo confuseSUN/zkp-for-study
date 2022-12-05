@@ -1,5 +1,5 @@
 [package]
-name = "study-kzg"
+name = "kzg"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,3 +14,4 @@ ark-poly = "^0.3.0"
 text_io = "0.1.9"
 num-bigint = "0.4"
 pub-srs = "0.1.0"
+

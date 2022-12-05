@@ -1,6 +1,6 @@
 use crate::table::{LookUpTable, SampleTable};
 use ark_std::test_rng;
-use study_kzg::{commitment::KZGCommitmentScheme, srs::SRS};
+use kzg::{commitment::KZGCommitmentScheme, srs::SRS};
 
 #[test]
 fn test_plookup() {

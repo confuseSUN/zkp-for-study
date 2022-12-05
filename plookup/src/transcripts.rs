@@ -1,9 +1,9 @@
 use ark_ff::UniformRand;
 use ark_serialize::CanonicalSerialize;
 use ark_std::rand::SeedableRng;
+use kzg::{Scalar, G1};
 use merlin::Transcript;
 use rand_chacha::ChaChaRng;
-use study_kzg::{Scalar, G1};
 
 pub trait GlobalTranscript {
     fn append_commitent(&mut self, comm: &G1);

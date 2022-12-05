@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "kzg",
-    "plookup"
+    "plookup",
+    "fri"
 ]
 
 

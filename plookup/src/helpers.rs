@@ -2,7 +2,7 @@ use std::ops::{Add, Mul, MulAssign, Sub};
 
 use ark_ff::{Field, One, Zero};
 use ark_poly::{EvaluationDomain, Polynomial, Radix2EvaluationDomain, UVPolynomial};
-use study_kzg::{Poly, Scalar};
+use kzg::{Poly, Scalar};
 
 use crate::table::SampleTable;
 

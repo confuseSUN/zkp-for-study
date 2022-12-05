@@ -1,5 +1,5 @@
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, UVPolynomial};
-use study_kzg::{commitment::KZGCommitmentScheme, Poly, Scalar, G1};
+use kzg::{commitment::KZGCommitmentScheme, Poly, Scalar, G1};
 
 use crate::{prover, verifier::PlookUpProof};
 

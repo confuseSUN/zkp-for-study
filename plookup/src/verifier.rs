@@ -2,11 +2,11 @@ use std::ops::Mul;
 
 use ark_poly::Radix2EvaluationDomain;
 use ark_std::rand::Rng;
-use merlin::Transcript;
-use study_kzg::{
+use kzg::{
     commitment::{KZGCommitmentProof, KZGCommitmentScheme},
     Scalar, G1,
 };
+use merlin::Transcript;
 
 use crate::transcripts::GlobalTranscript;
 
