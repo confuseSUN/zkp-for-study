@@ -63,7 +63,7 @@ impl<T: PrimeField> FRI<T> {
                 .into_iter()
                 .map(|x| x % (codewords[i].len() / 2))
                 .collect();
-            self.query(&codewords[i], &codewords[i + 1], &indexs, &mut proof)
+            self.query(&codewords[i], &codewords[i + 1], &indexs, &mut proof);
         }
 
         proof
@@ -97,17 +97,19 @@ impl<T: PrimeField> FRI<T> {
 
             if r != self.num_rounds() - 1 {
                 let alpha: T = transcript.get_challenge(b"alpha");
+                proof.push_alphas(alpha);
 
                 let mut next_codeword = vec![];
 
                 for i in 0..codeword_length / 2 {
                     let omega_pow_i = omega.pow(&[i as u64]);
-                    let omega_pow_i_inverse = omega_pow_i.inverse().unwrap();
+                    let omega_pow_i_inv = omega_pow_i.inverse().unwrap();
+                    let offset_inv = offset.inverse().unwrap();
                     let temp1 = one
-                        .add(alpha.mul(offset.inverse().unwrap().mul(&omega_pow_i_inverse)))
+                        .add(alpha.mul(offset_inv.mul(&omega_pow_i_inv)))
                         .mul(&codeword[i]);
                     let temp2 = one
-                        .sub(alpha.mul(offset.inverse().unwrap().mul(&omega_pow_i_inverse)))
+                        .sub(alpha.mul(offset_inv.mul(&omega_pow_i_inv)))
                         .mul(&codeword[i + codeword_length / 2]);
 
                     next_codeword.push(two_inverse.mul(temp1.add(&temp2)));
@@ -121,6 +123,7 @@ impl<T: PrimeField> FRI<T> {
 
         transcript.append_scalars(&codeword);
         proof.last_codeword = codeword;
+
         (proof, codewords)
     }
 
@@ -133,15 +136,17 @@ impl<T: PrimeField> FRI<T> {
         assert!(2 * reduced_size >= self.num_colinearity_tests);
         let mut num_colinearity_tests = self.num_colinearity_tests;
         let mut indexs = vec![];
+        let mut re_indexs = vec![];
 
         let seed: T = transcript.get_challenge(b"seed");
         let mut rng = test_rng_helper_from_scalar(&seed);
 
         while num_colinearity_tests > 0 {
             let index = rng.gen_range(0..size);
-            let index = index % reduced_size;
-            if !indexs.contains(&index) {
+            let re_index = index % reduced_size;
+            if !re_indexs.contains(&re_index) {
                 indexs.push(index);
+                re_indexs.push(re_index);
                 num_colinearity_tests -= 1;
             }
         }
@@ -162,16 +167,19 @@ impl<T: PrimeField> FRI<T> {
             .map(|x| x + (current_codeword.len() / 2))
             .collect::<Vec<usize>>();
 
+        let mut colinearity_tests = vec![];
+        let mut merkle_auth_paths = vec![];
+
         for i in 0..self.num_colinearity_tests {
-            // colinearity tests
+            // 1. colinearity tests
             let colinearity_test = (
                 current_codeword[first_indexs[i]],
                 current_codeword[second_indexs[i]],
                 next_codeword[first_indexs[i]],
             );
-            proof.push_colinearity_test(colinearity_test);
+            colinearity_tests.push(colinearity_test);
 
-            // merkle authentication paths
+            // 2. merkle authentication paths
             let current_codeword_db = MerkleTree::<T>::from_vec(current_codeword.to_vec());
             let current_codeword_path1 =
                 current_codeword_db.get_proof(current_codeword[first_indexs[i]]);
@@ -180,20 +188,25 @@ impl<T: PrimeField> FRI<T> {
 
             let next_codeword_db = MerkleTree::<T>::from_vec(next_codeword.to_vec());
             let next_codeword_path = next_codeword_db.get_proof(next_codeword[first_indexs[i]]);
-            proof.push_merkle_auth_paths((
+            merkle_auth_paths.push((
                 current_codeword_path1,
                 current_codeword_path2,
                 next_codeword_path,
             ));
         }
+
+        proof.push_colinearity_test(colinearity_tests);
+        proof.push_merkle_auth_paths(merkle_auth_paths);
     }
 
     pub fn verify(&self, proof: &FriProof<T>) {
         let last_codeword_db = MerkleTree::<T>::from_vec(proof.last_codeword.clone());
         assert!(last_codeword_db.root_hash().unwrap() == proof.merkle_root.last().unwrap());
 
-        let mut last_omega = self.omega;
-        let mut last_offset = self.offset;
+        let mut omega = self.omega;
+        let mut offset = self.offset;
+        let mut last_omega = omega;
+        let mut last_offset = offset;
         for _ in 0..self.num_rounds() - 1 {
             last_omega = last_omega.square();
             last_offset = last_offset.square();
@@ -240,18 +253,21 @@ impl<T: PrimeField> FRI<T> {
 
             // 1. verify colinearity test
             for i in 0..self.num_colinearity_tests {
-                let x1 = self.omega.pow(&[first_indexs[i] as u64]).mul(&self.offset);
-                let x2 = self.omega.pow(&[second_indexs[i] as u64]).mul(&self.offset);
+                let x1 = omega.pow(&[first_indexs[i] as u64]).mul(&offset);
+                let x2 = omega.pow(&[second_indexs[i] as u64]).mul(&offset);
                 let x3 = alphas[r];
 
-                let (y1, y2, y3) = proof.colinearity_tests[i];
+                let (y1, y2, y3) = proof.colinearity_tests[r][i];
 
                 Self::colinearity_test((x1, y1), (x2, y2), (x3, y3));
             }
 
+            omega = omega.square();
+            offset = offset.square();
+
             // 2. verify merkle path
             for i in 0..self.num_colinearity_tests {
-                let (a, b, c) = &proof.merkle_auth_paths[i];
+                let (a, b, c) = &proof.merkle_auth_paths[r][i];
                 assert!(a.validate(&proof.merkle_root[r]));
                 assert!(b.validate(&proof.merkle_root[r]));
                 assert!(c.validate(&proof.merkle_root[r + 1]));
@@ -263,9 +279,9 @@ impl<T: PrimeField> FRI<T> {
         let x1_sub_x2 = a.0.sub(&b.0);
         let y1_sub_y2 = a.1.sub(&b.1);
         let k = x1_sub_x2.inverse().unwrap().mul(&y1_sub_y2);
-        let b = a.1.sub(&k.mul(a.0));
+        let q = a.1.sub(&k.mul(a.0));
 
-        let poly = DensePolynomial::from_coefficients_vec(vec![b, k]);
+        let poly = DensePolynomial::from_coefficients_vec(vec![q, k]);
         let eval = poly.evaluate(&c.0);
         assert!(eval == c.1)
     }

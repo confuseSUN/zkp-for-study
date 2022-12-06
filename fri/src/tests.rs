@@ -9,7 +9,7 @@ fn test() {
     // d = p * N -1, p = 1/4
     let degree = 63;
     let expansion_factor = 4;
-    let num_colinearity_tests = 17;
+    let num_colinearity_tests = 4;
     let codeword_length = (degree + 1) * expansion_factor;
 
     let mut rng = test_rng();

@@ -7,8 +7,9 @@ use merkle_tree::Proof;
 pub struct FriProof<T: Display> {
     pub merkle_root: Vec<String>,
     pub last_codeword: Vec<T>,
-    pub colinearity_tests: Vec<(T, T, T)>,
-    pub merkle_auth_paths: Vec<(Proof<T>, Proof<T>, Proof<T>)>,
+    pub colinearity_tests: Vec<Vec<(T, T, T)>>,
+    pub merkle_auth_paths: Vec<Vec<(Proof<T>, Proof<T>, Proof<T>)>>,
+    pub alphas: Vec<T>,
 }
 
 impl<T: PrimeField> FriProof<T> {
@@ -16,11 +17,18 @@ impl<T: PrimeField> FriProof<T> {
         self.merkle_root.push(root)
     }
 
-    pub fn push_colinearity_test(&mut self, colinearity_test: (T, T, T)) {
+    pub fn push_colinearity_test(&mut self, colinearity_test: Vec<(T, T, T)>) {
         self.colinearity_tests.push(colinearity_test)
     }
 
-    pub fn push_merkle_auth_paths(&mut self, merkle_auth_path: (Proof<T>, Proof<T>, Proof<T>)) {
+    pub fn push_merkle_auth_paths(
+        &mut self,
+        merkle_auth_path: Vec<(Proof<T>, Proof<T>, Proof<T>)>,
+    ) {
         self.merkle_auth_paths.push(merkle_auth_path)
+    }
+
+    pub fn push_alphas(&mut self, alpha: T) {
+        self.alphas.push(alpha)
     }
 }
