@@ -97,7 +97,6 @@ impl<T: PrimeField> FRI<T> {
 
             if r != self.num_rounds() - 1 {
                 let alpha: T = transcript.get_challenge(b"alpha");
-                proof.push_alphas(alpha);
 
                 let mut next_codeword = vec![];
 

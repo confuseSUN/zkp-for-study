@@ -9,7 +9,6 @@ pub struct FriProof<T: Display> {
     pub last_codeword: Vec<T>,
     pub colinearity_tests: Vec<Vec<(T, T, T)>>,
     pub merkle_auth_paths: Vec<Vec<(Proof<T>, Proof<T>, Proof<T>)>>,
-    pub alphas: Vec<T>,
 }
 
 impl<T: PrimeField> FriProof<T> {
@@ -26,9 +25,5 @@ impl<T: PrimeField> FriProof<T> {
         merkle_auth_path: Vec<(Proof<T>, Proof<T>, Proof<T>)>,
     ) {
         self.merkle_auth_paths.push(merkle_auth_path)
-    }
-
-    pub fn push_alphas(&mut self, alpha: T) {
-        self.alphas.push(alpha)
     }
 }
