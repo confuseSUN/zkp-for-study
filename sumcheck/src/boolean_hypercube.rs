@@ -1,7 +1,6 @@
-use std::{fmt::Binary, io::Bytes, marker::PhantomData};
+use std::marker::PhantomData;
 
 use ark_ff::Field;
-use bitvec::slice::BitSlice;
 
 pub struct BooleanHypercube<F: Field> {
     n: u32,
@@ -49,20 +48,29 @@ impl<F: Field> Iterator for BooleanHypercube<F> {
 mod test {
     use super::BooleanHypercube;
 
-    use ark_ff::fields::{Fp64, MontBackend, MontConfig};
-
-    #[derive(MontConfig)]
-    #[modulus = "101"]
-    #[generator = "2"]
-    struct FrConfig;
-    type Fp101 = Fp64<MontBackend<FrConfig, 1>>;
+    use ark_ff::{One, Zero};
+    use sample_field::F101;
 
     #[test]
     pub fn test_boolean_hypercube() {
         let r = BooleanHypercube::new(3)
             .into_iter()
-            .collect::<Vec<Vec<Fp101>>>();
+            .collect::<Vec<Vec<F101>>>();
 
-        println!("{:?}", r)
+        let one = F101::one();
+        let zero = F101::zero();
+
+        let expect = vec![
+            vec![zero, zero, zero],
+            vec![zero, zero, one],
+            vec![zero, one, zero],
+            vec![zero, one, one],
+            vec![one, zero, zero],
+            vec![one, zero, one],
+            vec![one, one, zero],
+            vec![one, one, one],
+        ];
+
+        assert_eq!(r, expect)
     }
 }

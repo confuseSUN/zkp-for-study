@@ -13,11 +13,16 @@ use ark_std::{
 use boolean_hypercube::BooleanHypercube;
 
 pub mod boolean_hypercube;
+pub mod prover;
+pub mod verifier;
 
 pub trait SumCheck<F: Field>: Clone + Debug + Hash + PartialEq + Eq + Add + Neg + Zero {
+    // Returns num round of sumcheck protocol.
+    fn num_round(&self) -> usize;
+
     /// Evaluates `self` at the given the vector `point` in slice.
     /// If the number of variables does not match, return `None`.
-    fn evaluate(&self, point: &[F]) -> Option<F>;
+    fn evaluate(&self, point: &[F]) -> F;
 
     /// Reduce the number of variables of `self` by fixing the
     /// `partial_point.len()` variables at `partial_point`.
@@ -33,8 +38,8 @@ pub trait SumCheck<F: Field>: Clone + Debug + Hash + PartialEq + Eq + Add + Neg 
 }
 
 impl<F: Field> SumCheck<F> for multivariate::SparsePolynomial<F, SparseTerm> {
-    fn evaluate(&self, point: &[F]) -> Option<F> {
-        Some(Polynomial::evaluate(self, &point.to_vec()))
+    fn evaluate(&self, point: &[F]) -> F {
+        Polynomial::evaluate(self, &point.to_vec())
     }
 
     fn fix_variables(&self, partial_point: &[F]) -> Self {
@@ -107,12 +112,14 @@ impl<F: Field> SumCheck<F> for multivariate::SparsePolynomial<F, SparseTerm> {
 
         res
     }
+
+    fn num_round(&self) -> usize {
+        self.num_vars
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::fields::{Fp64, MontBackend, MontConfig};
-
     use ark_poly::{
         multivariate::{self, Term},
         univariate::SparsePolynomial,
@@ -121,15 +128,10 @@ mod tests {
 
     use ark_ff::One;
     use ark_ff::PrimeField;
+    use ark_ff::Zero;
+    use sample_field::F101;
 
-    use crate::SumCheck;
-
-    #[derive(MontConfig)]
-    #[modulus = "101"]
-    #[generator = "2"]
-    struct FrConfig;
-
-    type Fp101 = Fp64<MontBackend<FrConfig, 1>>;
+    use crate::{prover::Prover, verifier::Verifier, SumCheck};
 
     #[test]
     fn test_fix_variables() {
@@ -138,52 +140,52 @@ mod tests {
             3,
             &[
                 (
-                    Fp101::from_bigint(2u32.into()).unwrap(),
+                    F101::from_bigint(2u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 3)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 1), (2, 1)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(1, 1), (2, 1)]),
                 ),
             ],
         );
 
-        let r1 = Fp101::from(89);
+        let r1 = F101::from(89);
         let g1 = g.fix_variables(&[r1]);
         let expect_g1 = multivariate::SparsePolynomial::from_coefficients_slice(
             2,
             &[
                 (
-                    Fp101::from_bigint(79u32.into()).unwrap(),
+                    F101::from_bigint(79u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![]),
                 ),
                 (
-                    Fp101::from_bigint(89u32.into()).unwrap(),
+                    F101::from_bigint(89u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(1, 1)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 1), (1, 1)]),
                 ),
             ],
         );
         assert_eq!(g1, expect_g1);
 
-        let r2 = Fp101::from(1);
+        let r2 = F101::from(1);
         let g2 = g1.fix_variables(&[r2]);
         let expect_g2 = multivariate::SparsePolynomial::from_coefficients_slice(
             1,
             &[
                 (
-                    Fp101::from_bigint(79u32.into()).unwrap(),
+                    F101::from_bigint(79u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![]),
                 ),
                 (
-                    Fp101::from_bigint(90u32.into()).unwrap(),
+                    F101::from_bigint(90u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 1)]),
                 ),
             ],
@@ -198,23 +200,23 @@ mod tests {
             3,
             &[
                 (
-                    Fp101::from_bigint(2u32.into()).unwrap(),
+                    F101::from_bigint(2u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 3)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 1), (2, 1)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(1, 1), (2, 1)]),
                 ),
             ],
         );
 
         let evals = g.to_evaluations();
-        let sum: Fp101 = evals.iter().sum();
-        assert_eq!(sum, Fp101::from(12))
+        let sum: F101 = evals.iter().sum();
+        assert_eq!(sum, F101::from(12))
     }
 
     #[test]
@@ -224,15 +226,15 @@ mod tests {
             3,
             &[
                 (
-                    Fp101::from_bigint(2u32.into()).unwrap(),
+                    F101::from_bigint(2u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 3)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(0, 1), (2, 1)]),
                 ),
                 (
-                    Fp101::from_bigint(1u32.into()).unwrap(),
+                    F101::from_bigint(1u32.into()).unwrap(),
                     multivariate::SparseTerm::new(vec![(1, 1), (2, 1)]),
                 ),
             ],
@@ -240,9 +242,45 @@ mod tests {
 
         let uni_poly = g.to_univariate();
 
-        let coeffs = vec![(0, Fp101::one()), (1, Fp101::from(2)), (3, Fp101::from(8))];
+        let coeffs = vec![(0, F101::one()), (1, F101::from(2)), (3, F101::from(8))];
         let expect = SparsePolynomial::from_coefficients_vec(coeffs);
 
         assert_eq!(uni_poly, expect)
+    }
+
+    #[test]
+    pub fn test_sumcheck_protocol() {
+        // g(x) = 2 *x_1^3 + x_1 * x_3 + x_2 * x_3
+        let g = multivariate::SparsePolynomial::from_coefficients_slice(
+            3,
+            &[
+                (
+                    F101::from_bigint(2u32.into()).unwrap(),
+                    multivariate::SparseTerm::new(vec![(0, 3)]),
+                ),
+                (
+                    F101::from_bigint(1u32.into()).unwrap(),
+                    multivariate::SparseTerm::new(vec![(0, 1), (2, 1)]),
+                ),
+                (
+                    F101::from_bigint(1u32.into()).unwrap(),
+                    multivariate::SparseTerm::new(vec![(1, 1), (2, 1)]),
+                ),
+            ],
+        );
+
+        let mut prover = Prover::new(g.clone());
+
+        let sum = F101::from(12);
+        assert_eq!(prover.get_sum(), sum);
+
+        let mut verifier = Verifier::new(g.clone(), sum);
+
+        //perform sumcheck protocol
+        let mut r_i = F101::zero();
+        for j in 0..g.num_round() {
+            let prover_msg = prover.start_round(j, r_i);
+            r_i = verifier.receive_msg(j, prover_msg);
+        }
     }
 }

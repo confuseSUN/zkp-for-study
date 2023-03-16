@@ -3,7 +3,8 @@ members = [
     "kzg",
     "plookup",
     "fri",
-    "sumcheck"
+    "sumcheck",
+    "sample_field",
 ]
 
 

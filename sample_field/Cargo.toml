@@ -1,5 +1,5 @@
 [package]
-name = "sumcheck"
+name = "sample_field"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,3 @@ edition = "2021"
 
 [dependencies]
 ark-ff = "0.4.0"
-ark-std = "0.4.0"
-ark-poly = "0.4.0"
-
-[dependencies.sample_field]
-path = '../sample_field'
