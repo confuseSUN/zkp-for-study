@@ -5,6 +5,7 @@ members = [
     "fri",
     "sumcheck",
     "sample_field",
+    "poseidon",
 ]
 
 

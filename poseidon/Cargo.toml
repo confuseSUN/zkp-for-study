@@ -1,0 +1,16 @@
+[package]
+name = "poseidon"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-ff = "0.4.0"
+ark-std = "0.4.0"
+ark-poly = "0.4.0"
+num-bigint = { version = "0.4", default-features = false }
+
+
+[dependencies.sample_field]
+path = '../sample_field'
