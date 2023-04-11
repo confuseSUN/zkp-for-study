@@ -6,6 +6,7 @@ members = [
     "sumcheck",
     "sample_field",
     "poseidon",
+    "ipa",
 ]
 
 
