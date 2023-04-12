@@ -1,4 +1,4 @@
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::AffineCurve;
 use ark_ff::PrimeField;
 use ark_std::rand::SeedableRng;
 use merlin::Transcript;
