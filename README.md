@@ -9,3 +9,5 @@ This library only records the learning process of zkp, which currently includes:
         https://people.cs.georgetown.edu/jthaler/sumcheck.pdf 
  - Poseidon
         https://eprint.iacr.org/2019/458.pdf
+ - IPA(Inner Product Arguments) : This IPA used here is derived from the Halo paper, which mainly constructs a polynomial commitment that does not require trusted setup   
+        https://eprint.iacr.org/2019/1021.pdf
