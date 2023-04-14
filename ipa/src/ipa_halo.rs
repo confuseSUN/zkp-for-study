@@ -1,5 +1,4 @@
 use ark_ec::{msm::VariableBaseMSM, AffineCurve, ProjectiveCurve};
-use ark_ff::batch_inversion;
 use ark_ff::Field;
 use ark_ff::PrimeField;
 use ark_std::test_rng;
@@ -118,7 +117,7 @@ impl<G: ProjectiveCurve> Prover<G> {
         }
 
         let a_0 = a_vec[0];
-        let s = build_s(&u);
+        let s = build_s_automation(&u);
 
         // b_0 = <s,b>
         let b_0 = inner_product_of_scalars_scalars(&s, b);
@@ -206,7 +205,7 @@ impl<G: ProjectiveCurve> IpAProof<G> {
         transcript.append_points(&self.schnorrProof.R.into_affine());
         let c: G::ScalarField = transcript.get_challenge(b"challenge c");
 
-        let s = build_s(&u);
+        let s = build_s_automation(&u);
         let b_0 = inner_product_of_scalars_scalars(&s, b);
         let G_0 = inner_product_of_scalars_points(&s, &self.G);
 
@@ -265,21 +264,21 @@ pub fn vec_add_point<G: ProjectiveCurve>(a: &[G], b: &[G]) -> Vec<G> {
 //   ⋮    ⋮      ⋮
 //   u₁   u₂   … uₖ
 // )
-// Hard-coding is used here, with an input length of 8.
-fn build_s<F: PrimeField>(u: &[F]) -> Vec<F> {
-    let mut s: Vec<F> = vec![F::one(); 8];
+fn build_s_automation<F: PrimeField>(u: &[F]) -> Vec<F> {
+    let lg_n = u.len();
+    let n = 1 << lg_n;
 
-    let mut u_inv = u.to_owned();
-    batch_inversion(&mut u_inv);
-
-    s[0] = u_inv[0].mul(&u_inv[1]).mul(&u_inv[2]);
-    s[1] = u_inv[0].mul(&u_inv[1]).mul(&u[2]);
-    s[2] = u_inv[0].mul(&u[1]).mul(&u_inv[2]);
-    s[3] = u_inv[0].mul(&u[1]).mul(&u[2]);
-    s[4] = u[0].mul(&u_inv[1]).mul(&u_inv[2]);
-    s[5] = u[0].mul(&u_inv[1]).mul(&u[2]);
-    s[6] = u[0].mul(&u[1]).mul(&u_inv[2]);
-    s[7] = u[0].mul(&u[1]).mul(&u[2]);
+    let mut s = vec![F::one(); n];
+    for i in 0..n {
+        for (j, x) in u.iter().enumerate() {
+            if (i >> (lg_n - j - 1)) & 1 == 1 {
+                s[i].mul_assign(x);
+            } else {
+                let x_inv = x.inverse().unwrap();
+                s[i].mul_assign(&x_inv);
+            }
+        }
+    }
     s
 }
 
@@ -289,12 +288,33 @@ mod tests {
 
     use ark_bls12_381::{Fr, G1Affine, G1Projective};
     use ark_ec::{AffineCurve, ProjectiveCurve};
-    use ark_ff::{One, PrimeField, UniformRand};
+    use ark_ff::{batch_inversion, One, PrimeField, UniformRand};
     use ark_std::test_rng;
 
-    use crate::ipa_halo::inner_product_of_scalars_points;
+    use crate::ipa_halo::{build_s_automation, inner_product_of_scalars_points};
 
     use super::{inner_product_of_scalars_scalars, vec_add, vec_mul, Prover};
+
+    #[test]
+    fn build_s() {
+        let mut rng = test_rng();
+        let u = vec![Fr::rand(&mut rng), Fr::rand(&mut rng), Fr::rand(&mut rng)];
+        let s = build_s_automation(&u);
+
+        let mut expect_s: Vec<Fr> = vec![Fr::one(); 8];
+        let mut u_inv = u.to_owned();
+        batch_inversion(&mut u_inv);
+        expect_s[0] = u_inv[0].mul(&u_inv[1]).mul(&u_inv[2]);
+        expect_s[1] = u_inv[0].mul(&u_inv[1]).mul(&u[2]);
+        expect_s[2] = u_inv[0].mul(&u[1]).mul(&u_inv[2]);
+        expect_s[3] = u_inv[0].mul(&u[1]).mul(&u[2]);
+        expect_s[4] = u[0].mul(&u_inv[1]).mul(&u_inv[2]);
+        expect_s[5] = u[0].mul(&u_inv[1]).mul(&u[2]);
+        expect_s[6] = u[0].mul(&u[1]).mul(&u_inv[2]);
+        expect_s[7] = u[0].mul(&u[1]).mul(&u[2]);
+
+        assert_eq!(s, expect_s);
+    }
 
     #[test]
     fn inner_product_test() {
