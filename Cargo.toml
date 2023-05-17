@@ -7,7 +7,6 @@ members = [
     "sample_field",
     "poseidon",
     "ipa",
-    "hash_to_curve",
 ]
 
 
