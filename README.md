@@ -10,6 +10,4 @@ This library only records the learning process of zkp, which currently includes:
  - **Poseidon**
         https://eprint.iacr.org/2019/458.pdf
  - **IPA(Inner Product Arguments)** : The implementation of the IPA refers to the Halo paper, which mainly constructs a polynomial commitment that does not require trusted setup   
-        https://eprint.iacr.org/2019/1021.pdf
- - **HashToCurve** : A general Shallue–van de Woestijne map that is effective for most short Weierstrass equation. Please refer to section 6.6.1 of
-         https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-16.html     
+        https://eprint.iacr.org/2019/1021.pdf  
