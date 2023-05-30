@@ -160,6 +160,7 @@ impl<G: ProjectiveCurve> Prover<G> {
     }
 }
 
+#[allow(unused)]
 pub struct IpAProof<G: ProjectiveCurve> {
     L: Vec<G>,
     R: Vec<G>,
@@ -168,12 +169,14 @@ pub struct IpAProof<G: ProjectiveCurve> {
     H: G,
 }
 
+#[allow(unused)]
 pub struct SchnorrProof<G: ProjectiveCurve> {
     R: G,
     z_1: G::ScalarField,
     z_2: G::ScalarField,
 }
 
+#[allow(unused)]
 impl<G: ProjectiveCurve> IpAProof<G> {
     fn verify(&self, d: usize, P: &G, U: &G, b: &[G::ScalarField]) -> bool {
         let mut Q = P.to_owned();

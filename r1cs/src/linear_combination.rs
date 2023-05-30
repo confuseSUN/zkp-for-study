@@ -94,10 +94,10 @@ impl<F: Field> From<Variable<F>> for LinearCombination<F> {
     }
 }
 
-impl<'a, F: Field> From<&'a Variable<F>> for LinearCombination<F> {
-    fn from(v: &'a Variable<F>) -> LinearCombination<F> {
+impl<F: Field> From<F> for LinearCombination<F> {
+    fn from(v: F) -> LinearCombination<F> {
         LinearCombination {
-            terms: vec![(v.clone(), Sign::Positive)],
+            terms: vec![(Variable::Constant(v), Sign::Positive)],
         }
     }
 }

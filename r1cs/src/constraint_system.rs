@@ -182,8 +182,8 @@ mod tests {
 
         cs.constrain(x.into(), x.into(), sym1.into());
         cs.constrain(sym1.into(), x.into(), y.into());
-        cs.constrain(y + x, Constant(one).into(), sym2.into());
-        cs.constrain(sym2 + Constant(five), Constant(one).into(), out.into());
+        cs.constrain(y + x, one.into(), sym2.into());
+        cs.constrain(sym2 + five, one.into(), out.into());
 
         assert!(cs.is_satisfied());
 
@@ -230,13 +230,15 @@ mod tests {
     }
 
     // Z = x^3 - xy -x + 2y -8
+    //
+    // circuit:
     // o1 = x * y
     // o2 = x * x
     // o3 = o2 * x
     // o4 = 2 * y
     // out = (o3 - o1 - x + o4 -1) * 1
-
-    //witness = [1, x ,y, o1, o2, o3, o4,  out]
+    //
+    // witness = [1, x ,y, o1, o2, o3, o4,  out]
     #[test]
     fn test_r1cs_2() {
         let mut cs = ConstraintSystem::new();
@@ -261,12 +263,8 @@ mod tests {
         cs.constrain(x.into(), y.into(), o1.into());
         cs.constrain(x.into(), x.into(), o2.into());
         cs.constrain(o2.into(), x.into(), o3.into());
-        cs.constrain(Constant(two).into(), y.into(), o4.into());
-        cs.constrain(
-            o3 - o1 - x + o4 - Constant(eight),
-            Constant(one).into(),
-            out.into(),
-        );
+        cs.constrain(two.into(), y.into(), o4.into());
+        cs.constrain(o3 - o1 - x + o4 - eight, Constant(one).into(), out.into());
 
         assert!(cs.is_satisfied());
 
