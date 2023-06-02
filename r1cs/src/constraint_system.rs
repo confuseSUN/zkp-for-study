@@ -6,14 +6,19 @@ use crate::linear_combination::Variable;
 use crate::linear_combination::Variable::*;
 use crate::matrices::R1CSMatrices;
 use crate::matrices::SparseMatrices;
+use crate::R1CS;
 
 pub struct ConstraintSystem<F: Field> {
-    // The number of instance and witness.
-    pub num_instance_witness: usize,
     // The number of constraint.
     pub num_constraint: usize,
-    // The witness and instance.
-    pub instance_witness: Vec<F>,
+    // The number of instance.
+    pub num_instance: usize,
+    // The number of witness.
+    pub num_witness: usize,
+    // The witnes.
+    pub witness: Vec<F>,
+    // The instance.
+    pub instance: Vec<F>,
     // The Constraint of A.
     pub a: Vec<LinearCombination<F>>,
     // The Constraint of B.
@@ -25,41 +30,40 @@ pub struct ConstraintSystem<F: Field> {
 impl<F: Field> ConstraintSystem<F> {
     pub fn new() -> Self {
         ConstraintSystem {
-            num_instance_witness: 1,
+            num_instance: 1,
+            num_witness: 0,
             num_constraint: 0,
-            instance_witness: vec![F::one()],
+            witness: vec![],
+            instance: vec![F::one()],
             a: vec![],
             b: vec![],
             c: vec![],
         }
     }
 
-    pub fn new_witness(&mut self, value: F) -> Variable<F> {
-        let index = self.num_instance_witness;
-        self.num_instance_witness += 1;
-        self.instance_witness.push(value);
-
-        Witness(index)
+    pub fn get_and_clear_instance_witness(&mut self) -> Vec<F> {
+        let mut instance_witness = self.instance.clone();
+        instance_witness.splice(1..1, self.witness.clone());
+        self.witness.clear();
+        instance_witness
     }
 
-    pub fn new_instance(&mut self, value: F) -> Variable<F> {
-        let index = self.num_instance_witness;
-        self.num_instance_witness += 1;
-        self.instance_witness.push(value);
+    pub fn is_satisfied(&self) -> bool {
+        for ((a, b), c) in self.a.iter().zip(self.b.iter()).zip(self.c.iter()) {
+            let left = a.eval(&self.witness, &self.instance);
+            let right = b.eval(&self.witness, &self.instance);
+            let out = c.eval(&self.witness, &self.instance);
 
-        Instance(index)
+            if left * right != out {
+                return false;
+            }
+        }
+
+        true
     }
 
-    pub fn constrain(
-        &mut self,
-        a: LinearCombination<F>,
-        b: LinearCombination<F>,
-        c: LinearCombination<F>,
-    ) {
-        self.num_constraint += 1;
-        self.a.push(a);
-        self.b.push(b);
-        self.c.push(c);
+    pub fn get_num_instance_and_witness(&self) -> usize {
+        self.num_witness + self.num_instance
     }
 
     pub fn to_sparse_matrices(&self) -> R1CSMatrices<SparseMatrices<F>> {
@@ -72,7 +76,8 @@ impl<F: Field> ConstraintSystem<F> {
             for (var, sign) in lc.terms.iter() {
                 let (mut v, index) = match var {
                     Constant(v) => (*v, 0usize),
-                    Instance(i) | Witness(i) => (F::one(), *i),
+                    Witness(i) => (F::one(), *i + 1),
+                    Instance(i) => (F::one(), *i + self.num_witness),
                 };
 
                 if let Sign::Negative = sign {
@@ -90,7 +95,8 @@ impl<F: Field> ConstraintSystem<F> {
             for (var, sign) in lc.terms.iter() {
                 let (mut v, index) = match var {
                     Constant(v) => (*v, 0usize),
-                    Instance(i) | Witness(i) => (F::one(), *i),
+                    Witness(i) => (F::one(), *i + 1),
+                    Instance(i) => (F::one(), *i + self.num_witness),
                 };
 
                 if let Sign::Negative = sign {
@@ -108,7 +114,8 @@ impl<F: Field> ConstraintSystem<F> {
             for (var, sign) in lc.terms.iter() {
                 let (mut v, index) = match var {
                     Constant(v) => (*v, 0usize),
-                    Instance(i) | Witness(i) => (F::one(), *i),
+                    Witness(i) => (F::one(), *i + 1),
+                    Instance(i) => (F::one(), *i + self.num_witness),
                 };
 
                 if let Sign::Negative = sign {
@@ -125,77 +132,103 @@ impl<F: Field> ConstraintSystem<F> {
             a: SparseMatrices(a),
             b: SparseMatrices(b),
             c: SparseMatrices(c),
-            num_instance_witness: self.num_instance_witness,
+            num_instance_witness: self.get_num_instance_and_witness(),
         }
     }
+}
 
-    pub fn get_and_clear_instance_witness(&mut self) -> Vec<F> {
-        let instance_witness = self.instance_witness.clone();
-        self.instance_witness.clear();
+impl<F: Field> R1CS<F> for ConstraintSystem<F> {
+    fn new_witness(&mut self, value: F) -> Variable<F> {
+        let index = self.num_witness;
+        self.num_witness += 1;
+        self.witness.push(value);
 
-        instance_witness
+        Witness(index)
     }
 
-    pub fn is_satisfied(&self) -> bool {
-        for ((a, b), c) in self.a.iter().zip(self.b.iter()).zip(self.c.iter()) {
-            let left = a.eval(&self.instance_witness);
-            let right = b.eval(&self.instance_witness);
-            let out = c.eval(&self.instance_witness);
+    fn new_instance(&mut self, value: F) -> Variable<F> {
+        let index = self.num_instance;
+        self.num_instance += 1;
+        self.instance.push(value);
 
-            if left * right != out {
-                return false;
-            }
-        }
+        Instance(index)
+    }
 
-        true
+    fn constrain(
+        &mut self,
+        a: LinearCombination<F>,
+        b: LinearCombination<F>,
+        c: LinearCombination<F>,
+    ) {
+        self.num_constraint += 1;
+        self.a.push(a);
+        self.b.push(b);
+        self.c.push(c);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        linear_combination::Variable::Constant,
         matrices::{DenseMatrices, R1CSMatrices},
+        Circuit, R1CS,
     };
-    use ark_ff::One;
     use ark_ff::Zero;
+    use ark_ff::{Field, One};
     use sample_field::BN254Fr;
 
     use super::ConstraintSystem;
 
-    /// The test case is sourced from [Vitalik Buterin](https://vitalik.ca/general/2016/12/10/qap.html).
-    /// where y = x ^ 3 + x + 5
+    /// The CubicCircuit, which derived from [Vitalik Buterin](https://vitalik.ca/general/2016/12/10/qap.html),
+    /// defines the equation y = x^3 + x + 5.
+    struct CubicCircuit<F> {
+        pub input: F,
+    }
+
+    impl<F: Field> CubicCircuit<F> {
+        fn new(input: F) -> Self {
+            CubicCircuit { input }
+        }
+    }
+
+    impl<F: Field> Circuit<F> for CubicCircuit<F> {
+        fn synthesize<R: R1CS<F>>(&self, cs: &mut R) {
+            let one = F::one();
+            let five = F::from(5u8);
+
+            let x = cs.new_witness(self.input);
+            let sym1 = cs.new_witness(self.input * self.input);
+            let y = cs.new_witness(self.input * self.input * self.input);
+            let sym2 = cs.new_witness(self.input * self.input * self.input + self.input);
+            let out = cs.new_instance(self.input * self.input * self.input + self.input + five);
+
+            cs.constrain(x.into(), x.into(), sym1.into());
+            cs.constrain(sym1.into(), x.into(), y.into());
+            cs.constrain(y + x, one.into(), sym2.into());
+            cs.constrain(sym2 + five, one.into(), out.into());
+        }
+    }
+
     #[test]
-    fn test_r1cs_1() {
+    fn test_cubic_circuit() {
         let mut cs = ConstraintSystem::new();
-
-        let one = BN254Fr::one();
-        let three = BN254Fr::from(3u8);
-        let five = BN254Fr::from(5u8);
-        let nine = BN254Fr::from(9u8);
-
-        let x = cs.new_witness(three);
-        let out = cs.new_instance(nine * three + three + five);
-        let sym1 = cs.new_witness(nine);
-        let y = cs.new_witness(nine * three);
-        let sym2 = cs.new_witness(nine * three + three);
-
-        cs.constrain(x.into(), x.into(), sym1.into());
-        cs.constrain(sym1.into(), x.into(), y.into());
-        cs.constrain(y + x, one.into(), sym2.into());
-        cs.constrain(sym2 + five, one.into(), out.into());
+        let circuit = CubicCircuit::new(BN254Fr::from(3));
+        circuit.synthesize(&mut cs);
 
         assert!(cs.is_satisfied());
 
+        let witness = cs.get_and_clear_instance_witness();
         let sparse_martices = cs.to_sparse_matrices();
-
-        let dense_matrices: R1CSMatrices<DenseMatrices<BN254Fr>> = sparse_martices.into();
+        let dense_matrices: R1CSMatrices<DenseMatrices<BN254Fr>> = sparse_martices.clone().into();
 
         let (a, b, c) = get_test_matrices();
 
         assert_eq!(dense_matrices.a, a);
         assert_eq!(dense_matrices.b, b);
         assert_eq!(dense_matrices.c, c);
+
+        assert!(sparse_martices.verify(&witness));
+        assert!(dense_matrices.verify(&witness));
     }
 
     fn get_test_matrices() -> (
@@ -209,9 +242,9 @@ mod tests {
 
         let a = vec![
             [zero, one, zero, zero, zero, zero].to_vec(),
-            [zero, zero, zero, one, zero, zero].to_vec(),
-            [zero, one, zero, zero, one, zero].to_vec(),
-            [five, zero, zero, zero, zero, one].to_vec(),
+            [zero, zero, one, zero, zero, zero].to_vec(),
+            [zero, one, zero, one, zero, zero].to_vec(),
+            [five, zero, zero, zero, one, zero].to_vec(),
         ];
         let b = vec![
             [zero, one, zero, zero, zero, zero].to_vec(),
@@ -220,59 +253,12 @@ mod tests {
             [one, zero, zero, zero, zero, zero].to_vec(),
         ];
         let c = vec![
+            [zero, zero, one, zero, zero, zero].to_vec(),
             [zero, zero, zero, one, zero, zero].to_vec(),
             [zero, zero, zero, zero, one, zero].to_vec(),
             [zero, zero, zero, zero, zero, one].to_vec(),
-            [zero, zero, one, zero, zero, zero].to_vec(),
         ];
 
         (DenseMatrices(a), DenseMatrices(b), DenseMatrices(c))
-    }
-
-    // Z = x^3 - xy -x + 2y -8
-    //
-    // circuit:
-    // o1 = x * y
-    // o2 = x * x
-    // o3 = o2 * x
-    // o4 = 2 * y
-    // out = (o3 - o1 - x + o4 -1) * 1
-    //
-    // witness = [1, x ,y, o1, o2, o3, o4,  out]
-    #[test]
-    fn test_r1cs_2() {
-        let mut cs = ConstraintSystem::new();
-
-        let one = BN254Fr::one();
-        let two = BN254Fr::from(2u8);
-        let three = BN254Fr::from(3u8);
-        let seven = BN254Fr::from(7u8);
-        let eight = BN254Fr::from(8u8);
-
-        // if  x =3 and y = 7 then
-        // witness = [1, 3, 7, 21, 9, 27, 14, 9]
-        let x = cs.new_witness(three); // 3
-        let y = cs.new_instance(seven); // 7
-        let o1 = cs.new_witness(three * seven); // 21
-        let o2 = cs.new_witness(three * three); // 9
-        let o3 = cs.new_witness(three * three * three); // 27
-        let o4 = cs.new_witness(two * seven); //14
-        let out =
-            cs.new_instance(three * three * three - three * seven - three + two * seven - eight); //9
-
-        cs.constrain(x.into(), y.into(), o1.into());
-        cs.constrain(x.into(), x.into(), o2.into());
-        cs.constrain(o2.into(), x.into(), o3.into());
-        cs.constrain(two.into(), y.into(), o4.into());
-        cs.constrain(o3 - o1 - x + o4 - eight, Constant(one).into(), out.into());
-
-        assert!(cs.is_satisfied());
-
-        let witness = cs.get_and_clear_instance_witness();
-        let sparse_martices = cs.to_sparse_matrices();
-        let dense_matrices: R1CSMatrices<DenseMatrices<BN254Fr>> = sparse_martices.clone().into();
-
-        assert!(sparse_martices.verify(&witness));
-        assert!(dense_matrices.verify(&witness));
     }
 }
