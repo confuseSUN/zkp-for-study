@@ -1,18 +1,21 @@
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain, UVPolynomial};
-use kzg::{commitment::KZGCommitmentScheme, Poly, Scalar, G1};
+use ark_bls12_381::{Fr, G1Projective};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
+};
+use kzg::commitment::KZGCommitmentScheme;
 
 use crate::{prover, verifier::PlookUpProof};
 
 #[derive(Debug, Clone)]
-pub struct SampleTable(pub Vec<Scalar>);
+pub struct SampleTable(pub Vec<Fr>);
 
 impl SampleTable {
-    pub fn from_scalar(t: Vec<Scalar>) -> Self {
+    pub fn from_scalar(t: Vec<Fr>) -> Self {
         Self(t)
     }
 
     pub fn from_u64(t: Vec<u64>) -> Self {
-        let t = t.into_iter().map(|x| Scalar::from(x)).collect();
+        let t = t.into_iter().map(|x| Fr::from(x)).collect();
         Self(t)
     }
 
@@ -31,13 +34,13 @@ impl SampleTable {
         self.0.len()
     }
 
-    pub fn preprocess<E: EvaluationDomain<Scalar>>(
+    pub fn preprocess<E: EvaluationDomain<Fr>>(
         &self,
         kzg_comm_scheme: &KZGCommitmentScheme,
         domain: &E,
     ) -> PreProcessedTable {
         let coefs = domain.ifft(&self.0);
-        let poly = Poly::from_coefficients_vec(coefs);
+        let poly = DensePolynomial::from_coefficients_vec(coefs);
         let comm = kzg_comm_scheme.commit(&poly);
 
         PreProcessedTable {
@@ -73,8 +76,8 @@ impl SampleTable {
 #[derive(Debug, Clone)]
 pub struct LookUpTable {
     t_table: SampleTable,
-    f_table: Vec<Scalar>,
-    domain: Radix2EvaluationDomain<Scalar>,
+    f_table: Vec<Fr>,
+    domain: Radix2EvaluationDomain<Fr>,
 }
 
 impl LookUpTable {
@@ -93,15 +96,15 @@ impl LookUpTable {
     }
 
     pub fn read_from_u64(&mut self, f: u64) {
-        let x = Scalar::from(f);
+        let x = Fr::from(f);
         if !self.f_table.contains(&x) {
             self.f_table.push(x);
         }
     }
 
-    pub fn read_from_scalar(&mut self, scalar: Scalar) {
-        if !self.f_table.contains(&scalar) {
-            self.f_table.push(scalar);
+    pub fn read_from_scalar(&mut self, f: Fr) {
+        if !self.f_table.contains(&f) {
+            self.f_table.push(f);
         }
     }
 
@@ -120,7 +123,7 @@ impl LookUpTable {
 }
 
 pub struct PreProcessedTable {
-    pub poly: Poly,
-    pub comm: G1,
+    pub poly: DensePolynomial<Fr>,
+    pub comm: G1Projective,
     pub table: SampleTable,
 }

@@ -21,14 +21,14 @@ impl GlobalTranscript for Transcript {
     fn append_scalars<T: PrimeField>(&mut self, scalars: &[T]) {
         for scalar in scalars {
             let mut buf = Vec::new();
-            scalar.serialize_unchecked(&mut buf).unwrap();
+            scalar.serialize_uncompressed(&mut buf).unwrap();
             self.append_message(b"append scalar", &buf)
         }
     }
 
     fn append_scalar<T: PrimeField>(&mut self, scalar: &T) {
         let mut buf = Vec::new();
-        scalar.serialize_unchecked(&mut buf).unwrap();
+        scalar.serialize_uncompressed(&mut buf).unwrap();
         self.append_message(b"append scalar", &buf)
     }
 }

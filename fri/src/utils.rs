@@ -7,7 +7,7 @@ pub fn test_rng_helper(seed: [u8; 32]) -> StdRng {
 
 pub fn test_rng_helper_from_scalar<T: PrimeField>(scalar: &T) -> StdRng {
     let mut seed = Vec::new();
-    scalar.serialize(&mut seed).unwrap();
+    scalar.serialize_compressed(&mut seed).unwrap();
 
     let seed = seed.try_into().unwrap();
     rand::rngs::StdRng::from_seed(seed)

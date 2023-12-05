@@ -1,5 +1,5 @@
 use ark_ff::PrimeField;
-use ark_poly::{univariate::DensePolynomial, Polynomial, UVPolynomial};
+use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
 use ark_std::rand::Rng;
 use merkle_tree::MerkleTree;
 use merlin::Transcript;
@@ -20,8 +20,8 @@ impl<T: PrimeField> FRI<T> {
         expansion_factor: usize,
         num_colinearity_tests: usize,
     ) -> Self {
-        let offset = T::multiplicative_generator();
-        let omega = T::get_root_of_unity(codeword_length).unwrap();
+        let offset = T::GENERATOR;
+        let omega = T::get_root_of_unity(codeword_length as u64).unwrap();
         assert!(omega.pow(&[codeword_length as u64]) == T::one());
 
         FRI {

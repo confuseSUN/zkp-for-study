@@ -1,21 +1,21 @@
-use ark_bls12_381::g1::Parameters as G1_Parameters;
-use ark_bls12_381::Bls12_381;
-use ark_ec::{
-    msm::VariableBaseMSM, short_weierstrass_jacobian::GroupAffine, PairingEngine, ProjectiveCurve,
+use ark_bls12_381::{Bls12_381, Fr, G1Projective};
+use ark_ec::{pairing::Pairing, CurveGroup, VariableBaseMSM};
+use ark_ff::{One, UniformRand};
+use ark_poly::{
+    univariate::{DenseOrSparsePolynomial, DensePolynomial},
+    DenseUVPolynomial, Polynomial,
 };
-use ark_ff::{One, PrimeField, UniformRand};
-use ark_poly::{univariate::DenseOrSparsePolynomial, Polynomial, UVPolynomial};
 use ark_std::rand::Rng;
 use std::ops::{AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use crate::{srs::SRS, Poly, Scalar, G1};
+use crate::srs::SRS;
 
 pub struct KZGCommitmentScheme<'a>(pub &'a SRS);
 
 #[derive(Debug, Clone)]
 pub struct KZGCommitmentProof {
-    opening_values: Vec<Scalar>,
-    comm_h: G1,
+    opening_values: Vec<Fr>,
+    comm_h: G1Projective,
 }
 
 impl KZGCommitmentScheme<'_> {
@@ -23,44 +23,17 @@ impl KZGCommitmentScheme<'_> {
         self.0.g1.len() - 1
     }
 
-    pub fn commit(&self, poly: &Poly) -> G1 {
+    pub fn commit(&self, poly: &DensePolynomial<Fr>) -> G1Projective {
         assert!(self.max_degree() >= poly.degree());
-
-        let g1 = self
-            .0
-            .g1
-            .iter()
-            .map(|x| x.into_affine())
-            .collect::<Vec<GroupAffine<G1_Parameters>>>();
-        let (num_leading_zeros, coeffs) = Self::skip_leading_zeros_and_convert_to_bigints(poly);
-        let commitment = VariableBaseMSM::multi_scalar_mul(&g1[num_leading_zeros..], &coeffs);
-
-        commitment
+        let bases = G1Projective::normalize_batch(&self.0.g1[..poly.coeffs.len()]);
+        G1Projective::msm(&bases, &poly.coeffs).unwrap()
     }
 
-    fn skip_leading_zeros_and_convert_to_bigints<F: PrimeField, P: UVPolynomial<F>>(
-        p: &P,
-    ) -> (usize, Vec<F::BigInt>) {
-        let mut num_leading_zeros = 0;
-        while num_leading_zeros < p.coeffs().len() && p.coeffs()[num_leading_zeros].is_zero() {
-            num_leading_zeros += 1;
-        }
-        let coeffs = Self::convert_to_bigints(&p.coeffs()[num_leading_zeros..]);
-        (num_leading_zeros, coeffs)
-    }
-
-    fn convert_to_bigints<F: PrimeField>(p: &[F]) -> Vec<F::BigInt> {
-        let coeffs = ark_std::cfg_iter!(p)
-            .map(|s| s.into_repr())
-            .collect::<Vec<_>>();
-        coeffs
-    }
-
-    pub fn prove(&self, poly: &Poly, z: Scalar) -> KZGCommitmentProof {
+    pub fn prove(&self, poly: &DensePolynomial<Fr>, z: Fr) -> KZGCommitmentProof {
         let opening_value = poly.evaluate(&z);
 
-        let dividend = poly.sub(&Poly::from_coefficients_slice(&[opening_value]));
-        let divisor = Poly::from_coefficients_slice(&[z.neg(), Scalar::one()]);
+        let dividend = poly.sub(&DensePolynomial::from_coefficients_slice(&[opening_value]));
+        let divisor = DensePolynomial::from_coefficients_slice(&[z.neg(), Fr::one()]);
 
         let (quotient, remainder) =
             DenseOrSparsePolynomial::divide_with_q_and_r(&(&dividend).into(), &(&divisor).into())
@@ -78,23 +51,23 @@ impl KZGCommitmentScheme<'_> {
 
     pub fn batch_prove(
         &self,
-        polys: &[Poly],
-        z: &Scalar,
-        _challenge: &Scalar,
+        polys: &[DensePolynomial<Fr>],
+        z: &Fr,
+        _challenge: &Fr,
     ) -> KZGCommitmentProof {
-        //let mut v = Scalar::one();
-        let mut dividend_sum = Poly::default();
+        //let mut v = Fr::one();
+        let mut dividend_sum = DensePolynomial::default();
         let mut opening_values = vec![];
         for poly in polys.iter() {
             let opening_value = poly.evaluate(z);
             opening_values.push(opening_value);
-            let dividend = poly.sub(&Poly::from_coefficients_slice(&[opening_value]));
+            let dividend = poly.sub(&DensePolynomial::from_coefficients_slice(&[opening_value]));
             //  let dividend = dividend.mul(v);
             dividend_sum.add_assign(&dividend);
             //  v.mul_assign(challenge);
         }
 
-        let divisor = Poly::from_coefficients_slice(&[z.neg(), Scalar::one()]);
+        let divisor = DensePolynomial::from_coefficients_slice(&[z.neg(), Fr::one()]);
 
         let (quotient, remainder) = DenseOrSparsePolynomial::divide_with_q_and_r(
             &(&dividend_sum).into(),
@@ -112,51 +85,43 @@ impl KZGCommitmentScheme<'_> {
         }
     }
 
-    pub fn verify(&self, poly_comm: &G1, proof: &KZGCommitmentProof, z: &Scalar) -> bool {
+    pub fn verify(&self, poly_comm: &G1Projective, proof: &KZGCommitmentProof, z: &Fr) -> bool {
         let g1_base = self.0.g1[0];
         let g2_base = self.0.g2[0];
         let g2_r = self.0.g2[1];
 
-        let left = Bls12_381::pairing(
-            poly_comm.sub(g1_base.mul(proof.opening_values[0].into_repr())),
-            g2_base,
-        );
-        let right = Bls12_381::pairing(proof.comm_h, g2_r.sub(g2_base.mul(z.into_repr())));
+        let left = Bls12_381::pairing(poly_comm.sub(g1_base.mul(proof.opening_values[0])), g2_base);
+        let right = Bls12_381::pairing(proof.comm_h, g2_r.sub(g2_base.mul(z)));
 
         left == right
     }
 
     pub fn batch_verify<R: Rng>(
         &self,
-        poly_comms: &[Vec<G1>],
+        poly_comms: &[Vec<G1Projective>],
         proofs: &[&KZGCommitmentProof],
-        zs: &[Scalar],
+        zs: &[Fr],
         rng: &mut R,
     ) -> bool {
         let g1_base = self.0.g1[0];
         let g2_base = self.0.g2[0];
         let g2_r = self.0.g2[1];
 
-        let mut r = Scalar::rand(rng);
-        let mut left_0 = G1::default();
-        left_0.add_assign(&poly_comms[0].iter().sum::<G1>());
-        left_0
-            .sub_assign(g1_base.mul(&proofs[0].opening_values.iter().sum::<Scalar>().into_repr()));
-        left_0.add_assign(proofs[0].comm_h.mul(&zs[0].into_repr()));
+        let mut r = Fr::rand(rng);
+        let mut left_0 = G1Projective::default();
+        left_0.add_assign(&poly_comms[0].iter().sum::<G1Projective>());
+        left_0.sub_assign(g1_base.mul(&proofs[0].opening_values.iter().sum::<Fr>()));
+        left_0.add_assign(proofs[0].comm_h.mul(&zs[0]));
 
-        let mut right_0 = G1::default();
+        let mut right_0 = G1Projective::default();
         right_0.add_assign(&proofs[0].comm_h);
         for ((poly_comm, proof), z) in poly_comms.iter().zip(proofs.iter()).zip(zs.iter()).skip(1) {
-            left_0.add_assign(poly_comm.iter().sum::<G1>().mul(&r.into_repr()));
-            let opening_values_sum = proof.opening_values.iter().sum::<Scalar>();
-            left_0.sub_assign(
-                g1_base
-                    .mul(&opening_values_sum.into_repr())
-                    .mul(&r.into_repr()),
-            );
-            left_0.add_assign(proof.comm_h.mul(z.mul(&r).into_repr()));
+            left_0.add_assign(poly_comm.iter().sum::<G1Projective>().mul(&r));
+            let opening_values_sum = proof.opening_values.iter().sum::<Fr>();
+            left_0.sub_assign(g1_base.mul(&opening_values_sum).mul(&r));
+            left_0.add_assign(proof.comm_h.mul(z.mul(&r)));
 
-            right_0.add_assign(&proof.comm_h.mul(&r.into_repr()));
+            right_0.add_assign(&proof.comm_h.mul(&r));
 
             r.mul_assign(&r.clone());
         }
@@ -171,10 +136,11 @@ impl KZGCommitmentScheme<'_> {
 
 #[cfg(test)]
 mod test_kzg {
-    use super::{KZGCommitmentProof, KZGCommitmentScheme, Poly, SRS};
-    use crate::{Scalar, G1};
-    use ark_ff::UniformRand;
-    use ark_poly::UVPolynomial;
+    use super::{KZGCommitmentProof, KZGCommitmentScheme, SRS};
+    use ark_bls12_381::{Fr, G1Projective};
+    use ark_poly::univariate::DensePolynomial;
+    use ark_poly::DenseUVPolynomial;
+    use ark_std::UniformRand;
     use ark_std::{rand::Rng, test_rng};
 
     #[test]
@@ -194,23 +160,23 @@ mod test_kzg {
         assert!(is_ok);
     }
 
-    #[ignore = "git lfs disable"]
-    #[test]
-    fn test_kzg_comm_with_public_srs() {
-        let max_degree = 20;
-        let mut rng = test_rng();
-        let mut pub_srs = SRS::load_from_public_setup_parameters(max_degree);
-        let pub_srs_clone = pub_srs.clone();
-        let kzg_comm_scheme = KZGCommitmentScheme(&pub_srs_clone);
-        let (poly_comm, proof, z) = kzg_comm(&kzg_comm_scheme, max_degree, &mut rng);
-        let is_ok = kzg_comm_scheme.verify(&poly_comm, &proof, &z);
-        assert!(is_ok);
+    // #[ignore = "git lfs disable"]
+    // #[test]
+    // fn test_kzg_comm_with_public_srs() {
+    //     let max_degree = 20;
+    //     let mut rng = test_rng();
+    //     let mut pub_srs = SRS::load_from_public_setup_parameters(max_degree);
+    //     let pub_srs_clone = pub_srs.clone();
+    //     let kzg_comm_scheme = KZGCommitmentScheme(&pub_srs_clone);
+    //     let (poly_comm, proof, z) = kzg_comm(&kzg_comm_scheme, max_degree, &mut rng);
+    //     let is_ok = kzg_comm_scheme.verify(&poly_comm, &proof, &z);
+    //     assert!(is_ok);
 
-        pub_srs.update(&mut rng);
-        let (poly_comm, proof, z) = kzg_comm(&kzg_comm_scheme, max_degree, &mut rng);
-        let is_ok = kzg_comm_scheme.verify(&poly_comm, &proof, &z);
-        assert!(is_ok);
-    }
+    //     pub_srs.update(&mut rng);
+    //     let (poly_comm, proof, z) = kzg_comm(&kzg_comm_scheme, max_degree, &mut rng);
+    //     let is_ok = kzg_comm_scheme.verify(&poly_comm, &proof, &z);
+    //     assert!(is_ok);
+    // }
 
     #[test]
     fn test_batch_kzg_comm() {
@@ -267,17 +233,17 @@ mod test_kzg {
         kzg_comm_scheme: &KZGCommitmentScheme,
         max_degree: usize,
         rng: &mut R,
-    ) -> (G1, KZGCommitmentProof, Scalar) {
+    ) -> (G1Projective, KZGCommitmentProof, Fr) {
         let mut coefs = Vec::new();
         for _ in 0..max_degree + 1 {
-            let coef = Scalar::rand(rng);
+            let coef = Fr::rand(rng);
             coefs.push(coef);
         }
 
-        let poly = Poly::from_coefficients_vec(coefs);
+        let poly = DensePolynomial::from_coefficients_vec(coefs);
         let poly_comm = kzg_comm_scheme.commit(&poly);
 
-        let z = Scalar::rand(rng);
+        let z = Fr::rand(rng);
         let proof = kzg_comm_scheme.prove(&poly, z);
 
         (poly_comm, proof, z)
@@ -288,25 +254,25 @@ mod test_kzg {
         max_degree: usize,
         batch_size: usize,
         rng: &mut R,
-    ) -> (Vec<G1>, KZGCommitmentProof, Scalar) {
+    ) -> (Vec<G1Projective>, KZGCommitmentProof, Fr) {
         let mut polys = vec![];
         let mut poly_comms = vec![];
         for _ in 0..batch_size {
             let mut coefs = Vec::new();
             for _ in 0..max_degree + 1 {
-                let coef = Scalar::rand(rng);
+                let coef = Fr::rand(rng);
                 coefs.push(coef);
             }
 
-            let poly = Poly::from_coefficients_vec(coefs);
+            let poly = DensePolynomial::from_coefficients_vec(coefs);
             let poly_comm = kzg_comm_scheme.commit(&poly);
 
             polys.push(poly);
             poly_comms.push(poly_comm);
         }
 
-        let z = Scalar::rand(rng);
-        let challenge = Scalar::rand(rng);
+        let z = Fr::rand(rng);
+        let challenge = Fr::rand(rng);
         let proof = kzg_comm_scheme.batch_prove(&polys, &z, &challenge);
 
         (poly_comms, proof, z)

@@ -1,8 +1,11 @@
+use ark_bls12_381::Fr;
 use ark_ff::Zero;
-use ark_poly::{EvaluationDomain, Polynomial, Radix2EvaluationDomain, UVPolynomial};
-use kzg::{commitment::KZGCommitmentScheme, Poly, Scalar};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Polynomial,
+    Radix2EvaluationDomain,
+};
+use kzg::commitment::KZGCommitmentScheme;
 use merlin::Transcript;
-use std::ops::Mul;
 
 use crate::{
     helpers::{compute_r_poly, compute_t_poly, compute_z_poly},
@@ -10,11 +13,12 @@ use crate::{
     transcripts::GlobalTranscript,
     verifier::PlookUpProof,
 };
+use std::ops::Mul;
 
 pub(super) fn prove(
     mut f_table: SampleTable,
     t_preprocess_table: PreProcessedTable,
-    domain: &Radix2EvaluationDomain<Scalar>,
+    domain: &Radix2EvaluationDomain<Fr>,
     kzg_comm_scheme: &KZGCommitmentScheme,
 ) -> PlookUpProof {
     let mut transcript = Transcript::new(b"plookup");
@@ -31,7 +35,7 @@ pub(super) fn prove(
     let sorted_table = f_table.sort_by(&t_table);
 
     let f_coefs = domain.ifft(&f_table.0);
-    let f_poly = Poly::from_coefficients_vec(f_coefs);
+    let f_poly = DensePolynomial::from_coefficients_vec(f_coefs);
     let f_comm = kzg_comm_scheme.commit(&f_poly);
     transcript.append_commitent(&f_comm);
 
@@ -39,13 +43,13 @@ pub(super) fn prove(
     let n = sorted_table.size() / 2;
     let h1_table = SampleTable::from_scalar(sorted_table.0[..=n].to_vec());
     let h1_coefs = domain.ifft(&h1_table.0);
-    let h1_poly = Poly::from_coefficients_vec(h1_coefs);
+    let h1_poly = DensePolynomial::from_coefficients_vec(h1_coefs);
     let h1_comm = kzg_comm_scheme.commit(&h1_poly);
     transcript.append_commitent(&h1_comm);
 
     let h2_table = SampleTable::from_scalar(sorted_table.0[n..].to_vec());
     let h2_coefs = domain.ifft(&h2_table.0);
-    let h2_poly = Poly::from_coefficients_vec(h2_coefs);
+    let h2_poly = DensePolynomial::from_coefficients_vec(h2_coefs);
     let h2_comm = kzg_comm_scheme.commit(&h2_poly);
     transcript.append_commitent(&h2_comm);
 
@@ -66,7 +70,7 @@ pub(super) fn prove(
     );
 
     let zeta = transcript.get_challenge(b"zeta");
-    let zeta_omega = zeta.mul(domain.group_gen);
+    let zeta_omega = zeta.mul(&domain.group_gen);
     let f_poly_eval_zeta = f_poly.evaluate(&zeta);
     let t_poly_eval_zeta = t_poly.evaluate(&zeta);
     let t_poly_eval_zeta_omega = t_poly.evaluate(&zeta_omega);
@@ -86,7 +90,7 @@ pub(super) fn prove(
         &zeta_omega,
         domain,
     );
-    assert!(r_poly.evaluate(&zeta) == Scalar::zero());
+    assert!(r_poly.evaluate(&zeta) == Fr::zero());
     let r_comm = kzg_comm_scheme.commit(&r_poly);
     transcript.append_commitent(&r_comm);
 

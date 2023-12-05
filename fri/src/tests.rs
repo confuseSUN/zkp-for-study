@@ -1,8 +1,10 @@
 use crate::fri::FRI;
+use ark_bls12_381::Fr;
 use ark_ff::UniformRand;
-use ark_poly::{polynomial::UVPolynomial, EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
+};
 use ark_std::test_rng;
-use kzg::{Poly, Scalar};
 
 #[test]
 fn test() {
@@ -15,16 +17,16 @@ fn test() {
     let mut rng = test_rng();
     let mut coefs = Vec::new();
     for _ in 0..degree + 1 {
-        let coef = Scalar::rand(&mut rng);
+        let coef = Fr::rand(&mut rng);
         coefs.push(coef);
     }
-    let poly = Poly::from_coefficients_vec(coefs);
+    let poly = DensePolynomial::from_coefficients_vec(coefs);
 
-    let domain = Radix2EvaluationDomain::<Scalar>::new(codeword_length).unwrap();
+    let domain = Radix2EvaluationDomain::<Fr>::new(codeword_length).unwrap();
     let codeword = domain.fft(&poly);
     assert!(codeword.len() == codeword_length);
 
-    let fri = FRI::<Scalar>::new(codeword_length, expansion_factor, num_colinearity_tests);
+    let fri = FRI::<Fr>::new(codeword_length, expansion_factor, num_colinearity_tests);
 
     let proof = fri.prove(&codeword);
 

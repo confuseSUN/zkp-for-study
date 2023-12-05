@@ -1,25 +1,23 @@
 use std::ops::Mul;
 
+use ark_bls12_381::{Fr, G1Projective};
 use ark_poly::Radix2EvaluationDomain;
 use ark_std::rand::Rng;
-use kzg::{
-    commitment::{KZGCommitmentProof, KZGCommitmentScheme},
-    Scalar, G1,
-};
+use kzg::commitment::{KZGCommitmentProof, KZGCommitmentScheme};
 use merlin::Transcript;
 
 use crate::transcripts::GlobalTranscript;
 
 pub struct PlookUpProof {
-    pub f_comm: G1,
-    pub t_comm: G1,
-    pub h1_comm: G1,
-    pub h2_comm: G1,
-    pub r_comm: G1,
-    pub z_comm: G1,
+    pub f_comm: G1Projective,
+    pub t_comm: G1Projective,
+    pub h1_comm: G1Projective,
+    pub h2_comm: G1Projective,
+    pub r_comm: G1Projective,
+    pub z_comm: G1Projective,
     pub opening_witness_zeta: KZGCommitmentProof,
     pub opening_witness_zeta_omega: KZGCommitmentProof,
-    pub domain: Radix2EvaluationDomain<Scalar>,
+    pub domain: Radix2EvaluationDomain<Fr>,
 }
 
 impl PlookUpProof {
@@ -35,7 +33,7 @@ impl PlookUpProof {
         transcript.append_commitent(&self.z_comm);
 
         let zeta = transcript.get_challenge(b"zeta");
-        let zeta_omega = zeta.mul(self.domain.group_gen);
+        let zeta_omega = zeta.mul(&self.domain.group_gen);
 
         transcript.append_commitent(&self.r_comm);
         let _v = transcript.get_challenge(b"v");

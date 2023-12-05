@@ -10,6 +10,15 @@ members = [
     "nova",
     "r1cs",
 ]
+resolver = "2"
+
+[workspace.dependencies]
+ark-ff = "0.4.2"
+ark-std = "0.4.0"
+ark-poly = "0.4.2"
+ark-bls12-381 = "0.4.0"
+ark-serialize = "0.4.2"
+ark-ec = "0.4.2"
 
 
 [patch.crates-io]
