@@ -4,7 +4,7 @@ use ark_std::test_rng;
 
 use crate::SumCheck;
 
-pub struct Verifier<F: Field, S: SumCheck<F> + Default> {
+pub struct Verifier<F: Field, S: SumCheck<F>> {
     /// g is the multivariate polynomial to be proved
     g: S,
     // univariate polynolial sent from prover
@@ -15,7 +15,7 @@ pub struct Verifier<F: Field, S: SumCheck<F> + Default> {
     sum: F,
 }
 
-impl<F: Field, S: SumCheck<F> + Default> Verifier<F, S> {
+impl<F: Field, S: SumCheck<F>> Verifier<F, S> {
     pub fn new(g: S, sum: F) -> Self {
         Self {
             g,

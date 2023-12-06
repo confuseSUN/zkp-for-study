@@ -1,4 +1,4 @@
-use ark_bls12_381::Fr;
+use ark_ec::pairing::Pairing;
 use ark_ff::Zero;
 use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Polynomial,
@@ -15,12 +15,12 @@ use crate::{
 };
 use std::ops::Mul;
 
-pub(super) fn prove(
-    mut f_table: SampleTable,
-    t_preprocess_table: PreProcessedTable,
-    domain: &Radix2EvaluationDomain<Fr>,
-    kzg_comm_scheme: &KZGCommitmentScheme,
-) -> PlookUpProof {
+pub(super) fn prove<P: Pairing>(
+    mut f_table: SampleTable<P::ScalarField>,
+    t_preprocess_table: PreProcessedTable<P::G1>,
+    domain: &Radix2EvaluationDomain<P::ScalarField>,
+    kzg_comm_scheme: &KZGCommitmentScheme<P>,
+) -> PlookUpProof<P::G1> {
     let mut transcript = Transcript::new(b"plookup");
     transcript.append_u64(b"size", domain.size as u64);
 
@@ -54,8 +54,8 @@ pub(super) fn prove(
     transcript.append_commitent(&h2_comm);
 
     // 3.Get challenge beta and gamma.
-    let beta = transcript.get_challenge(b"beta");
-    let gamma = transcript.get_challenge(b"gamma");
+    let beta = <Transcript as GlobalTranscript<P::G1>>::get_challenge(&mut transcript, b"beta");
+    let gamma = <Transcript as GlobalTranscript<P::G1>>::get_challenge(&mut transcript, b"gamma");
 
     // 4.Compute z(X) and commit it.
     let z_poly = compute_z_poly(
@@ -69,7 +69,7 @@ pub(super) fn prove(
         &z_poly, &f_poly, &t_poly, &h1_poly, &h2_poly, domain, &beta, &gamma,
     );
 
-    let zeta = transcript.get_challenge(b"zeta");
+    let zeta = <Transcript as GlobalTranscript<P::G1>>::get_challenge(&mut transcript, b"zeta");
     let zeta_omega = zeta.mul(&domain.group_gen);
     let f_poly_eval_zeta = f_poly.evaluate(&zeta);
     let t_poly_eval_zeta = t_poly.evaluate(&zeta);
@@ -90,12 +90,12 @@ pub(super) fn prove(
         &zeta_omega,
         domain,
     );
-    assert!(r_poly.evaluate(&zeta) == Fr::zero());
+    assert!(r_poly.evaluate(&zeta) == P::ScalarField::zero());
     let r_comm = kzg_comm_scheme.commit(&r_poly);
     transcript.append_commitent(&r_comm);
 
     // 7.Compute two opening proof polynomial.
-    let v = transcript.get_challenge(b"v");
+    let v = <Transcript as GlobalTranscript<P::G1>>::get_challenge(&mut transcript, b"v");
     let w_zeta = kzg_comm_scheme.batch_prove(
         &[f_poly, t_poly.clone(), h1_poly.clone(), r_poly],
         &zeta,

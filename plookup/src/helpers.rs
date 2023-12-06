@@ -1,7 +1,6 @@
-use std::ops::{Add, Mul, MulAssign, Sub};
+use std::ops::{Add, Mul, Sub};
 
-use ark_bls12_381::Fr;
-use ark_ff::{Field, One, Zero};
+use ark_ff::PrimeField;
 use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Polynomial,
     Radix2EvaluationDomain,
@@ -9,27 +8,27 @@ use ark_poly::{
 
 use crate::table::SampleTable;
 
-pub fn compute_n_lagrange_poly<E: EvaluationDomain<Fr>>(
+pub fn compute_n_lagrange_poly<F: PrimeField, E: EvaluationDomain<F>>(
     domain: &E,
     n: usize,
-) -> DensePolynomial<Fr> {
-    let mut evals = vec![Fr::zero(); domain.size()];
-    evals[n] = Fr::one();
+) -> DensePolynomial<F> {
+    let mut evals = vec![F::zero(); domain.size()];
+    evals[n] = F::one();
     domain.ifft_in_place(&mut evals);
     DensePolynomial::from_coefficients_vec(evals)
 }
 
-pub fn compute_t_poly(
-    z_poly: &DensePolynomial<Fr>,
-    f_poly: &DensePolynomial<Fr>,
-    t_poly: &DensePolynomial<Fr>,
-    h1_poly: &DensePolynomial<Fr>,
-    h2_poly: &DensePolynomial<Fr>,
-    domain: &Radix2EvaluationDomain<Fr>,
-    beta: &Fr,
-    gamma: &Fr,
-) -> DensePolynomial<Fr> {
-    let domain_4n = Radix2EvaluationDomain::<Fr>::new(domain.size() * 4).unwrap();
+pub fn compute_t_poly<F: PrimeField>(
+    z_poly: &DensePolynomial<F>,
+    f_poly: &DensePolynomial<F>,
+    t_poly: &DensePolynomial<F>,
+    h1_poly: &DensePolynomial<F>,
+    h2_poly: &DensePolynomial<F>,
+    domain: &Radix2EvaluationDomain<F>,
+    beta: &F,
+    gamma: &F,
+) -> DensePolynomial<F> {
+    let domain_4n = Radix2EvaluationDomain::<F>::new(domain.size() * 4).unwrap();
     let group_4n = domain_4n.elements();
     let gn = domain.elements().last().unwrap();
     let l1_poly = compute_n_lagrange_poly(domain, 0);
@@ -49,7 +48,7 @@ pub fn compute_t_poly(
 
     let term1_poly = l1_poly
         .add(ln_poly.clone())
-        .mul(&z_poly.sub(&DensePolynomial::from_coefficients_vec(vec![Fr::one()])));
+        .mul(&z_poly.sub(&DensePolynomial::from_coefficients_vec(vec![F::one()])));
 
     let (_, remainder) = term1_poly.divide_by_vanishing_poly(*domain).unwrap();
     assert!(remainder.is_empty());
@@ -65,7 +64,7 @@ pub fn compute_t_poly(
     let (_, remainder) = term2_poly.divide_by_vanishing_poly(*domain).unwrap();
     assert!(remainder.is_empty());
 
-    let beta_plus_one = beta.add(&Fr::one());
+    let beta_plus_one = beta.add(&F::one());
     let gamma_mul_beta_plus_one = gamma.mul(&beta_plus_one);
     let term3_evals = (0..domain_4n.size())
         .into_iter()
@@ -95,7 +94,7 @@ pub fn compute_t_poly(
 
             term1.sub(term2)
         })
-        .collect::<Vec<Fr>>();
+        .collect::<Vec<F>>();
 
     let term3_coefs = domain_4n.ifft(&term3_evals);
     let term3_poly = DensePolynomial::from_coefficients_vec(term3_coefs);
@@ -110,26 +109,26 @@ pub fn compute_t_poly(
     t_poly
 }
 
-pub fn compute_r_poly(
-    z_poly: &DensePolynomial<Fr>,
-    h1_poly: &DensePolynomial<Fr>,
-    h2_poly: &DensePolynomial<Fr>,
-    quotient_poly: &DensePolynomial<Fr>,
-    f_poly_eval_zeta: &Fr,
-    t_poly_eval_zeta: &Fr,
-    t_poly_eval_zeta_omega: &Fr,
-    zeta: &Fr,
-    beta: &Fr,
-    gamma: &Fr,
-    zeta_omega: &Fr,
-    domain: &Radix2EvaluationDomain<Fr>,
-) -> DensePolynomial<Fr> {
+pub fn compute_r_poly<F: PrimeField>(
+    z_poly: &DensePolynomial<F>,
+    h1_poly: &DensePolynomial<F>,
+    h2_poly: &DensePolynomial<F>,
+    quotient_poly: &DensePolynomial<F>,
+    f_poly_eval_zeta: &F,
+    t_poly_eval_zeta: &F,
+    t_poly_eval_zeta_omega: &F,
+    zeta: &F,
+    beta: &F,
+    gamma: &F,
+    zeta_omega: &F,
+    domain: &Radix2EvaluationDomain<F>,
+) -> DensePolynomial<F> {
     let h1_poly_eval_zeta = h1_poly.evaluate(&zeta);
     let h1_poly_eval_zeta_omega = h1_poly.evaluate(&zeta_omega);
     let h2_poly_eval_zeta_omega = h2_poly.evaluate(&zeta_omega);
     let z_poly_eval_zeta_omega = z_poly.evaluate(&zeta_omega);
     let gn = domain.elements().last().unwrap();
-    let beta_plus_one = beta.add(&Fr::one());
+    let beta_plus_one = beta.add(&F::one());
     let gamma_mul_beta_plus_one = gamma.mul(&beta_plus_one);
     let l1_poly = compute_n_lagrange_poly(domain, 0);
     let ln_poly = compute_n_lagrange_poly(domain, domain.size() - 1);
@@ -137,7 +136,7 @@ pub fn compute_r_poly(
     let ln_poly_eval_zeta = ln_poly.evaluate(zeta);
 
     let term1 = z_poly
-        .sub(&DensePolynomial::from_coefficients_vec(vec![Fr::one()]))
+        .sub(&DensePolynomial::from_coefficients_vec(vec![F::one()]))
         .mul(l1_poly_eval_zeta.add(ln_poly_eval_zeta));
 
     let term2 = z_poly
@@ -174,21 +173,21 @@ pub fn compute_r_poly(
     r_poly
 }
 
-pub fn compute_z_poly(
+pub fn compute_z_poly<F: PrimeField>(
     n: usize,
-    f_table: &SampleTable,
-    t_table: &SampleTable,
-    h1_table: &SampleTable,
-    h2_table: &SampleTable,
-    gamma: &Fr,
-    beta: &Fr,
-    domain: &Radix2EvaluationDomain<Fr>,
-) -> DensePolynomial<Fr> {
-    let mut z_evals = vec![Fr::one()];
-    let mut numerator = Fr::one();
-    let mut denominator = Fr::one();
+    f_table: &SampleTable<F>,
+    t_table: &SampleTable<F>,
+    h1_table: &SampleTable<F>,
+    h2_table: &SampleTable<F>,
+    gamma: &F,
+    beta: &F,
+    domain: &Radix2EvaluationDomain<F>,
+) -> DensePolynomial<F> {
+    let mut z_evals = vec![F::one()];
+    let mut numerator = F::one();
+    let mut denominator = F::one();
 
-    let beta_plus_one = beta.add(&Fr::one());
+    let beta_plus_one = beta.add(&F::one());
     let gamma_mul_beta_plus_one = gamma.mul(&beta_plus_one);
 
     for i in 0..n {
@@ -213,7 +212,7 @@ pub fn compute_z_poly(
         let denominator_inv = denominator.inverse().unwrap();
         z_evals.push(numerator.mul(&denominator_inv));
     }
-    assert_eq!(z_evals.last().unwrap().to_owned(), Fr::one());
+    assert_eq!(z_evals.last().unwrap().to_owned(), F::one());
 
     let z_coefs = domain.ifft(&z_evals);
     let z_poly = DensePolynomial::from_coefficients_vec(z_coefs);

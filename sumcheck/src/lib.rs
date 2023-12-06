@@ -16,7 +16,9 @@ pub mod boolean_hypercube;
 pub mod prover;
 pub mod verifier;
 
-pub trait SumCheck<F: Field>: Clone + Debug + Hash + PartialEq + Eq + Add + Neg + Zero {
+pub trait SumCheck<F: Field>:
+    Clone + Debug + Hash + PartialEq + Eq + Add + Neg + Zero + Default
+{
     // Returns num round of sumcheck protocol.
     fn num_round(&self) -> usize;
 

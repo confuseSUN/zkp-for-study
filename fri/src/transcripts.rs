@@ -3,22 +3,22 @@ use ark_std::rand::SeedableRng;
 use merlin::Transcript;
 use rand_chacha::ChaChaRng;
 
-pub trait GlobalTranscript {
-    fn append_scalar<T: PrimeField>(&mut self, scalar: &T);
+pub trait GlobalTranscript<F: PrimeField> {
+    fn append_scalar(&mut self, scalar: &F);
 
-    fn append_scalars<T: PrimeField>(&mut self, scalar: &[T]);
+    fn append_scalars(&mut self, scalar: &[F]);
 
-    fn get_challenge<T: PrimeField>(&mut self, label: &'static [u8]) -> T;
+    fn get_challenge(&mut self, label: &'static [u8]) -> F;
 }
 
-impl GlobalTranscript for Transcript {
-    fn get_challenge<T: PrimeField>(&mut self, label: &'static [u8]) -> T {
+impl<F: PrimeField> GlobalTranscript<F> for Transcript {
+    fn get_challenge(&mut self, label: &'static [u8]) -> F {
         let mut buf = [0u8; 32];
         self.challenge_bytes(label, &mut buf);
-        T::rand(&mut ChaChaRng::from_seed(buf))
+        F::rand(&mut ChaChaRng::from_seed(buf))
     }
 
-    fn append_scalars<T: PrimeField>(&mut self, scalars: &[T]) {
+    fn append_scalars(&mut self, scalars: &[F]) {
         for scalar in scalars {
             let mut buf = Vec::new();
             scalar.serialize_uncompressed(&mut buf).unwrap();
@@ -26,7 +26,7 @@ impl GlobalTranscript for Transcript {
         }
     }
 
-    fn append_scalar<T: PrimeField>(&mut self, scalar: &T) {
+    fn append_scalar(&mut self, scalar: &F) {
         let mut buf = Vec::new();
         scalar.serialize_uncompressed(&mut buf).unwrap();
         self.append_message(b"append scalar", &buf)

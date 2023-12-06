@@ -6,23 +6,23 @@ use merlin::Transcript;
 
 use crate::{proof::FriProof, transcripts::GlobalTranscript, utils::test_rng_helper_from_scalar};
 
-pub struct FRI<T> {
-    pub offset: T,
-    pub omega: T,
+pub struct FRI<F: PrimeField> {
+    pub offset: F,
+    pub omega: F,
     pub expansion_factor: usize,
     pub num_colinearity_tests: usize,
     pub codeword_length: usize,
 }
 
-impl<T: PrimeField> FRI<T> {
+impl<F: PrimeField> FRI<F> {
     pub fn new(
         codeword_length: usize,
         expansion_factor: usize,
         num_colinearity_tests: usize,
     ) -> Self {
-        let offset = T::GENERATOR;
-        let omega = T::get_root_of_unity(codeword_length as u64).unwrap();
-        assert!(omega.pow(&[codeword_length as u64]) == T::one());
+        let offset = F::GENERATOR;
+        let omega = F::get_root_of_unity(codeword_length as u64).unwrap();
+        assert!(omega.pow(&[codeword_length as u64]) == F::one());
 
         FRI {
             offset,
@@ -47,7 +47,7 @@ impl<T: PrimeField> FRI<T> {
         num_rounds
     }
 
-    pub fn prove(&self, codeword: &[T]) -> FriProof<T> {
+    pub fn prove(&self, codeword: &[F]) -> FriProof<F> {
         assert!(codeword.len() == self.codeword_length);
 
         let mut transcript = self.init_transcript();
@@ -71,15 +71,15 @@ impl<T: PrimeField> FRI<T> {
 
     pub fn commit(
         &self,
-        codeword: &[T],
+        codeword: &[F],
         transcript: &mut Transcript,
-    ) -> (FriProof<T>, Vec<Vec<T>>) {
+    ) -> (FriProof<F>, Vec<Vec<F>>) {
         let mut omega = self.omega;
         let mut offset = self.offset;
         let mut proof = FriProof::default();
         let mut codeword = codeword.to_vec();
         let mut codewords = vec![];
-        let one = T::one();
+        let one = F::one();
         let two = one.add(&one);
         let two_inverse = two.inverse().unwrap();
 
@@ -87,7 +87,7 @@ impl<T: PrimeField> FRI<T> {
             let codeword_length = codeword.len();
             assert!(omega.pow(&[(codeword_length - 1) as u64]) == omega.inverse().unwrap());
 
-            let db = MerkleTree::<T>::from_vec(codeword.to_vec());
+            let db = MerkleTree::<F>::from_vec(codeword.to_vec());
             let root = db.root_hash().unwrap();
             proof.push_root(root.to_string());
 
@@ -96,7 +96,7 @@ impl<T: PrimeField> FRI<T> {
             codewords.push(codeword.clone());
 
             if r != self.num_rounds() - 1 {
-                let alpha: T = transcript.get_challenge(b"alpha");
+                let alpha: F = transcript.get_challenge(b"alpha");
 
                 let mut next_codeword = vec![];
 
@@ -137,7 +137,7 @@ impl<T: PrimeField> FRI<T> {
         let mut indexs = vec![];
         let mut re_indexs = vec![];
 
-        let seed: T = transcript.get_challenge(b"seed");
+        let seed: F = transcript.get_challenge(b"seed");
         let mut rng = test_rng_helper_from_scalar(&seed);
 
         while num_colinearity_tests > 0 {
@@ -155,10 +155,10 @@ impl<T: PrimeField> FRI<T> {
 
     pub fn query(
         &self,
-        current_codeword: &[T],
-        next_codeword: &[T],
+        current_codeword: &[F],
+        next_codeword: &[F],
         indexs: &[usize],
-        proof: &mut FriProof<T>,
+        proof: &mut FriProof<F>,
     ) {
         let first_indexs = indexs;
         let second_indexs = indexs
@@ -179,13 +179,13 @@ impl<T: PrimeField> FRI<T> {
             colinearity_tests.push(colinearity_test);
 
             // 2. merkle authentication paths
-            let current_codeword_db = MerkleTree::<T>::from_vec(current_codeword.to_vec());
+            let current_codeword_db = MerkleTree::<F>::from_vec(current_codeword.to_vec());
             let current_codeword_path1 =
                 current_codeword_db.get_proof(current_codeword[first_indexs[i]]);
             let current_codeword_path2 =
                 current_codeword_db.get_proof(current_codeword[second_indexs[i]]);
 
-            let next_codeword_db = MerkleTree::<T>::from_vec(next_codeword.to_vec());
+            let next_codeword_db = MerkleTree::<F>::from_vec(next_codeword.to_vec());
             let next_codeword_path = next_codeword_db.get_proof(next_codeword[first_indexs[i]]);
             merkle_auth_paths.push((
                 current_codeword_path1,
@@ -198,8 +198,8 @@ impl<T: PrimeField> FRI<T> {
         proof.push_merkle_auth_paths(merkle_auth_paths);
     }
 
-    pub fn verify(&self, proof: &FriProof<T>) {
-        let last_codeword_db = MerkleTree::<T>::from_vec(proof.last_codeword.clone());
+    pub fn verify(&self, proof: &FriProof<F>) {
+        let last_codeword_db = MerkleTree::<F>::from_vec(proof.last_codeword.clone());
         assert!(last_codeword_db.root_hash().unwrap() == proof.merkle_root.last().unwrap());
 
         let mut omega = self.omega;
@@ -228,7 +228,7 @@ impl<T: PrimeField> FRI<T> {
             transcript.append_message(b"root", proof.merkle_root[r].as_bytes());
 
             if r != self.num_rounds() - 1 {
-                let alpha: T = transcript.get_challenge(b"alpha");
+                let alpha: F = transcript.get_challenge(b"alpha");
                 alphas.push(alpha);
             }
         }
@@ -274,7 +274,7 @@ impl<T: PrimeField> FRI<T> {
         }
     }
 
-    fn colinearity_test(a: (T, T), b: (T, T), c: (T, T)) {
+    fn colinearity_test(a: (F, F), b: (F, F), c: (F, F)) {
         let x1_sub_x2 = a.0.sub(&b.0);
         let y1_sub_y2 = a.1.sub(&b.1);
         let k = x1_sub_x2.inverse().unwrap().mul(&y1_sub_y2);

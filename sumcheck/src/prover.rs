@@ -3,7 +3,7 @@ use ark_poly::univariate::SparsePolynomial;
 
 use crate::SumCheck;
 
-pub struct Prover<F: Field, S: SumCheck<F> + Default> {
+pub struct Prover<F: Field, S: SumCheck<F>> {
     /// g is the multivariate polynomial to be proved
     g: S,
     // intermediate_g is the intermediate result of g executing `fix_variable`
@@ -12,7 +12,7 @@ pub struct Prover<F: Field, S: SumCheck<F> + Default> {
     sum: F,
 }
 
-impl<F: Field, S: SumCheck<F> + Default> Prover<F, S> {
+impl<F: Field, S: SumCheck<F>> Prover<F, S> {
     pub fn new(g: S) -> Self {
         let sum = g.to_evaluations().iter().sum();
         Self {

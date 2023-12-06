@@ -1,4 +1,5 @@
-use ark_bls12_381::{Fr, G1Projective};
+use ark_ec::{pairing::Pairing, CurveGroup};
+use ark_ff::PrimeField;
 use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
 };
@@ -7,15 +8,15 @@ use kzg::commitment::KZGCommitmentScheme;
 use crate::{prover, verifier::PlookUpProof};
 
 #[derive(Debug, Clone)]
-pub struct SampleTable(pub Vec<Fr>);
+pub struct SampleTable<F: PrimeField>(pub Vec<F>);
 
-impl SampleTable {
-    pub fn from_scalar(t: Vec<Fr>) -> Self {
+impl<F: PrimeField> SampleTable<F> {
+    pub fn from_scalar(t: Vec<F>) -> Self {
         Self(t)
     }
 
     pub fn from_u64(t: Vec<u64>) -> Self {
-        let t = t.into_iter().map(|x| Fr::from(x)).collect();
+        let t = t.into_iter().map(|x| F::from(x)).collect();
         Self(t)
     }
 
@@ -34,11 +35,11 @@ impl SampleTable {
         self.0.len()
     }
 
-    pub fn preprocess<E: EvaluationDomain<Fr>>(
+    pub fn preprocess<P: Pairing<ScalarField = F>, E: EvaluationDomain<F>>(
         &self,
-        kzg_comm_scheme: &KZGCommitmentScheme,
+        kzg_comm_scheme: &KZGCommitmentScheme<P>,
         domain: &E,
-    ) -> PreProcessedTable {
+    ) -> PreProcessedTable<P::G1> {
         let coefs = domain.ifft(&self.0);
         let poly = DensePolynomial::from_coefficients_vec(coefs);
         let comm = kzg_comm_scheme.commit(&poly);
@@ -55,7 +56,7 @@ impl SampleTable {
     ///
     /// first, we should do is make sure that f is a subset of t,
     /// second, the return table is (f, t) sorted by t.    
-    pub fn sort_by(&mut self, t_table: &Self) -> SampleTable {
+    pub fn sort_by(&mut self, t_table: &Self) -> Self {
         let eles = vec![self.0.last().unwrap().to_owned(); t_table.size() - 1 - self.size()];
         self.0.extend(eles);
 
@@ -74,14 +75,14 @@ impl SampleTable {
 }
 
 #[derive(Debug, Clone)]
-pub struct LookUpTable {
-    t_table: SampleTable,
-    f_table: Vec<Fr>,
-    domain: Radix2EvaluationDomain<Fr>,
+pub struct LookUpTable<F: PrimeField> {
+    t_table: SampleTable<F>,
+    f_table: Vec<F>,
+    domain: Radix2EvaluationDomain<F>,
 }
 
-impl LookUpTable {
-    pub fn new(mut t_table: SampleTable) -> Self {
+impl<F: PrimeField> LookUpTable<F> {
+    pub fn new(mut t_table: SampleTable<F>) -> Self {
         if !t_table.size().is_power_of_two() {
             t_table.pad();
         }
@@ -96,19 +97,22 @@ impl LookUpTable {
     }
 
     pub fn read_from_u64(&mut self, f: u64) {
-        let x = Fr::from(f);
+        let x = F::from(f);
         if !self.f_table.contains(&x) {
             self.f_table.push(x);
         }
     }
 
-    pub fn read_from_scalar(&mut self, f: Fr) {
-        if !self.f_table.contains(&f) {
-            self.f_table.push(f);
+    pub fn read_from_scalar(&mut self, f: &F) {
+        if !self.f_table.contains(f) {
+            self.f_table.push(f.clone());
         }
     }
 
-    pub fn prove(&self, kzg_comm_scheme: &KZGCommitmentScheme) -> PlookUpProof {
+    pub fn prove<P: Pairing<ScalarField = F>>(
+        &self,
+        kzg_comm_scheme: &KZGCommitmentScheme<P>,
+    ) -> PlookUpProof<P::G1> {
         for f in self.f_table.iter() {
             if !self.t_table.0.contains(f) {
                 panic!("Current prover's table is not a subset of look up table");
@@ -122,8 +126,8 @@ impl LookUpTable {
     }
 }
 
-pub struct PreProcessedTable {
-    pub poly: DensePolynomial<Fr>,
-    pub comm: G1Projective,
-    pub table: SampleTable,
+pub struct PreProcessedTable<G: CurveGroup> {
+    pub poly: DensePolynomial<G::ScalarField>,
+    pub comm: G,
+    pub table: SampleTable<G::ScalarField>,
 }
