@@ -1,4 +1,4 @@
-pub fn butterfly<T>(input: &mut [T]) {
+pub fn reverse<T>(input: &mut [T]) {
     assert!(input.len().is_power_of_two());
 
     let n = input.len();
@@ -22,17 +22,17 @@ pub fn butterfly<T>(input: &mut [T]) {
 
 #[cfg(test)]
 mod test {
-    use super::butterfly;
+    use super::reverse;
 
     #[test]
-    fn test_butterfly() {
+    fn test_reverse() {
         let x = vec![0, 1, 2, 3, 4, 5, 6, 7];
         let mut y = x.clone();
 
-        butterfly(&mut y);
+        reverse(&mut y);
         assert_eq!(y, vec![0, 4, 2, 6, 1, 5, 3, 7]);
 
-        butterfly(&mut y);
+        reverse(&mut y);
         assert_eq!(x, y);
     }
 }

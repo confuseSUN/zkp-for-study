@@ -1,13 +1,13 @@
 use ark_ff::PrimeField;
 
-use crate::bit_reverse::butterfly;
+use crate::bit_reverse::reverse;
 
 pub fn radix2_fft<F: PrimeField>(coeffs: &[F], domain: &[F]) -> Vec<F> {
     let n = coeffs.len();
     assert_eq!(n, domain.len() * 2);
 
     let mut coeffs = coeffs.to_vec();
-    butterfly(&mut coeffs);
+    reverse(&mut coeffs);
 
     // The stage of butterfly operations in FFT.
     let mut stage = 0;
