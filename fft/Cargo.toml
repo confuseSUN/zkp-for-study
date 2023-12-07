@@ -10,3 +10,4 @@ ark-ff.workspace=true
 
 [dev-dependencies]
 ark-bls12-381.workspace=true
+ark-poly.workspace=true

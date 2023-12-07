@@ -22,10 +22,10 @@ pub fn radix2_fft<F: PrimeField>(coeffs: &[F], domain: &[F]) -> Vec<F> {
             for j in (i..n).step_by(step) {
                 let w_j = w * coeffs[j + num_domain_elements_needed];
 
-                let r_0 = coeffs[i] + w_j;
-                let r_1 = coeffs[i] - w_j;
+                let r_0 = coeffs[j] + w_j;
+                let r_1 = coeffs[j] - w_j;
 
-                coeffs[i] = r_0;
+                coeffs[j] = r_0;
                 coeffs[j + num_domain_elements_needed] = r_1;
             }
         }
