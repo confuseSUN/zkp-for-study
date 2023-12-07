@@ -9,6 +9,7 @@ members = [
     "ipa",
     "nova",
     "r1cs",
+    "fft",
 ]
 resolver = "2"
 
