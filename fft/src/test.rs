@@ -6,7 +6,11 @@ use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
 };
 
-use crate::{domain::evaluation_domain, fft::radix2_fft};
+use crate::{
+    domain::{evaluation_domain, DomainConfig},
+    fft::radix2_fft,
+    ifft::radix2_ifft,
+};
 
 fn native_eval<F: PrimeField>(coeffs: &[F]) -> Vec<F> {
     let domain = Radix2EvaluationDomain::new(coeffs.len()).unwrap();
@@ -27,18 +31,21 @@ fn test_fft() {
         Fr::from(7),
         Fr::from(8),
     ];
-    let domain = evaluation_domain(coeffs.len());
+
+    let domain = evaluation_domain(coeffs.len(), DomainConfig::NATURAL);
     let values = radix2_fft(&coeffs, &domain);
+    let expected_values = native_eval(&coeffs);
+    assert_eq!(values, expected_values);
 
-    let expected = native_eval(&coeffs);
-
-    assert_eq!(values, expected);
+    let domain = evaluation_domain(coeffs.len(), DomainConfig::INVERSE);
+    let expected_coeffs = radix2_ifft(&values, &domain);
+    assert_eq!(coeffs, expected_coeffs);
 }
 
 #[test]
 fn test_comparison() {
     let coeffs = vec![Fr::from(100); 1048576];
-    let domain = evaluation_domain(coeffs.len());
+    let domain = evaluation_domain(coeffs.len(), DomainConfig::NATURAL);
 
     /*   Custom Radix-2 FFT  */
     let start = Instant::now();

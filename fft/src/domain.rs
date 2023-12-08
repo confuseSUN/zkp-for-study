@@ -1,5 +1,10 @@
 use ark_ff::PrimeField;
 
+pub enum DomainConfig {
+    NATURAL, // w^0,w^1,w^2,w^3,...
+    INVERSE, // w^0,w^{-1},w^{-2},w^{-3},...
+}
+
 pub fn get_nth_root_of_unity<F: PrimeField>(size: usize) -> Option<F> {
     let n = size.next_power_of_two();
     let log_n = n.trailing_zeros();
@@ -16,10 +21,14 @@ pub fn get_nth_root_of_unity<F: PrimeField>(size: usize) -> Option<F> {
     Some(omega)
 }
 
-pub fn evaluation_domain<F: PrimeField>(n: usize) -> Vec<F> {
+pub fn evaluation_domain<F: PrimeField>(n: usize, config: DomainConfig) -> Vec<F> {
     assert!(n.is_power_of_two());
 
-    let root: F = get_nth_root_of_unity(n).unwrap();
+    let mut root: F = get_nth_root_of_unity(n).unwrap();
+    root = match config {
+        DomainConfig::NATURAL => root,
+        DomainConfig::INVERSE => root.inverse().unwrap(),
+    };
 
     let mut elements = Vec::with_capacity(n >> 1);
     elements.extend((0..n >> 1).scan(F::ONE, |state, _| {
