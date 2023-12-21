@@ -21,14 +21,14 @@ pub fn get_nth_root_of_unity<F: PrimeField>(size: usize) -> Option<F> {
     Some(omega)
 }
 
+// Returns the first n / 2 elements.
 pub fn evaluation_domain<F: PrimeField>(n: usize, config: DomainConfig) -> Vec<F> {
     assert!(n.is_power_of_two());
 
     let mut root: F = get_nth_root_of_unity(n).unwrap();
-    root = match config {
-        DomainConfig::NATURAL => root,
-        DomainConfig::INVERSE => root.inverse().unwrap(),
-    };
+    if let DomainConfig::INVERSE = config {
+        root = root.inverse().unwrap();
+    }
 
     let mut elements = Vec::with_capacity(n >> 1);
     elements.extend((0..n >> 1).scan(F::ONE, |state, _| {

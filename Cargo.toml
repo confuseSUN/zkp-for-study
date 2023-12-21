@@ -10,6 +10,7 @@ members = [
     "nova",
     "r1cs",
     "fft",
+    "stark_by_hand",
 ]
 resolver = "2"
 
