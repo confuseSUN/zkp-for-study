@@ -83,3 +83,73 @@ impl<F: PrimeField> FibonacciConstraint<F> {
         res
     }
 }
+
+impl<F: PrimeField> Debug for FibonacciConstraint<F>{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("relation: [")?;
+        for (i, x) in self.relation_constraint.get_raw_ref().iter().enumerate() {
+            let v = x.into_bigint().to_string();
+            if i != self.relation_constraint.len() - 1 {
+                f.write_fmt(format_args!("{},", v))?;
+            } else {
+                f.write_fmt(format_args!("{}", v))?;
+            }
+        }
+        f.write_str("] \n")?;
+
+        f.write_str("first input: [")?;
+        for (i, x) in self.first_input_constraint.get_raw_ref().iter().enumerate() {
+            let v = x.into_bigint().to_string();
+            if i != self.first_input_constraint.len() - 1 {
+                f.write_fmt(format_args!("{},", v))?;
+            } else {
+                f.write_fmt(format_args!("{}", v))?;
+            }
+        }
+        f.write_str("] \n")?;
+
+        f.write_str("second input: [")?;
+        for (i, x) in self.second_input_constraint.get_raw_ref().iter().enumerate() {
+            let v = x.into_bigint().to_string();
+            if i != self.second_input_constraint.len() - 1 {
+                f.write_fmt(format_args!("{},", v))?;
+            } else {
+                f.write_fmt(format_args!("{}", v))?;
+            }
+        }
+        f.write_str("] \n")?;
+
+        f.write_str("termination: [")?;
+        for (i, x) in self.termination_constraint.get_raw_ref().iter().enumerate() {
+            let v = x.into_bigint().to_string();
+            if i != self.termination_constraint.len() - 1 {
+                f.write_fmt(format_args!("{},", v))?;
+            } else {
+                f.write_fmt(format_args!("{}", v))?;
+            }
+        }
+        f.write_str("] \n")?;
+
+        f.write_str("first copy: [")?;
+        for (i, x) in self.first_copy_constraint.get_raw_ref().iter().enumerate() {
+            let v = x.into_bigint().to_string();
+            if i != self.first_copy_constraint.len() - 1 {
+                f.write_fmt(format_args!("{},", v))?;
+            } else {
+                f.write_fmt(format_args!("{}", v))?;
+            }
+        }
+        f.write_str("] \n")?;
+
+        f.write_str("second copy: [")?;
+        for (i, x) in self.second_copy_constraint.get_raw_ref().iter().enumerate() {
+            let v = x.into_bigint().to_string();
+            if i != self.second_copy_constraint.len() - 1 {
+                f.write_fmt(format_args!("{},", v))?;
+            } else {
+                f.write_fmt(format_args!("{}", v))?;
+            }
+        }
+        f.write_str("] \n")
+    }
+}

@@ -75,80 +75,9 @@ fn main() {
     );
     let constraint_zk_commitments =
         FibonacciConstraint::construct(&trace_zk_commitments, &public_inputs, Label::NotTraCeColumn);
-    println!("\n constraint column:");
-    println!("relation constraint:{:?}", constraints.relation_constraint);
-    println!(
-        "first input constraint:{:?}",
-        constraints.first_input_constraint
-    );
-    println!(
-        "second input constraint:{:?}",
-        constraints.second_input_constraint
-    );
-    println!(
-        "termination input constraint:{:?}",
-        constraints.termination_constraint
-    );
-    println!(
-        "first copy constraint:{:?} ",
-        constraints.first_copy_constraint
-    );
-    println!(
-        "second copy constraint:{:?} \n",
-        constraints.second_copy_constraint
-    );
-
-    println!("constraint reedsolomon codes:");
-    println!(
-        "equal constraint:{:?}",
-        constraint_reedsolomon_codes.relation_constraint
-    );
-    println!(
-        "first input constraint:{:?}",
-        constraint_reedsolomon_codes.first_input_constraint
-    );
-    println!(
-        "second input constraint:{:?}",
-        constraint_reedsolomon_codes.second_input_constraint
-    );
-    println!(
-        "termination input constraint:{:?}",
-        constraint_reedsolomon_codes.termination_constraint
-    );
-    println!(
-        "first copy constraint:{:?} ",
-        constraint_reedsolomon_codes.first_copy_constraint
-    );
-    println!(
-        "second copy constraint:{:?} \n",
-        constraint_reedsolomon_codes.second_copy_constraint
-    );
-
-    println!("constraint zk codes:");
-    println!(
-        "equal constraint:{:?}",
-        constraint_zk_commitments.relation_constraint
-    );
-    println!(
-        "first input constraint:{:?}",
-        constraint_zk_commitments.first_input_constraint
-    );
-    println!(
-        "second input constraint:{:?}",
-        constraint_zk_commitments.second_input_constraint
-    );
-    println!(
-        "termination input constraint:{:?}",
-        constraint_zk_commitments.termination_constraint
-    );
-    println!(
-        "first permutation constraint:{:?} ",
-        constraint_zk_commitments.first_copy_constraint
-    );
-    println!(
-        "second permutation constraint:{:?} \n",
-        constraint_zk_commitments.second_copy_constraint
-    );
+    println!("\n constraints: \n{:?}",constraints);
+    println!("constraint reedsolomon codes:\n{:?}",constraints);
+    println!("constraint zk commitments:\n{:?}",constraints);
 
     let mix_alpha = Fr::from(3);
     let mixed_constraint_columns = constraints.mix(&mix_alpha);
