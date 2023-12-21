@@ -32,7 +32,7 @@ fn main() {
         control_column_3,
     ];
 
-    println!("The trace polynomial:");
+    println!("The six trace polynomials:");
     let mut trace_polys = Vec::new();
     let domain = Radix2EvaluationDomain::<Fr>::new(trace[0].len()).unwrap();
     for values in trace.iter() {
@@ -40,9 +40,8 @@ fn main() {
         println!("{:?}", poly);
         trace_polys.push(poly);
     }
-    println!();
 
-    println!("The reedsolomon codes of trace polynomial:");
+    println!("\n The reedsolomon codes of trace polynomial:");
     let mut trace_reedsolomon_codes = Vec::new();
     let expanded_domain = Radix2EvaluationDomain::<Fr>::new(8 * 4).unwrap();
     for coeffs in trace_polys.iter() {
@@ -51,60 +50,58 @@ fn main() {
         println!("{:?}", code);
         trace_reedsolomon_codes.push(code);
     }
-    println!();
 
-    println!("The zk codes of trace polynomial:");
-    let mut trace_zk_codes = Vec::with_capacity(trace_polys.len());
+    println!("\n The zk commitments of trace polynomial:");
+    let mut trace_zk_commitments = Vec::with_capacity(trace_polys.len());
     let expanded_coset_domain = expanded_domain.get_coset(Fr::GENERATOR).unwrap();
     for coeffs in trace_polys.iter() {
         let poly = DensePolynomial::from_coefficients_slice(coeffs.get_raw_ref());
         let code = Column::from(&poly.evaluate_over_domain(expanded_coset_domain).evals);
         println!("{:?}", code);
-        trace_zk_codes.push(code);
+        trace_zk_commitments.push(code);
     }
-    println!();
 
     // let x = expanded_coset_domain.ifft(&trace_zk_codes[0]);
     // let p = DensePolynomial::from_coefficients_slice(&x);
     // let r = p.evaluate_over_domain(domain);
     // println("", &r.evals);
 
-    let constraint_column =
+    let constraints =
         FibonacciConstraint::construct(&trace, &public_inputs, Label::TraCeColumn);
     let constraint_reedsolomon_codes = FibonacciConstraint::construct(
         &trace_reedsolomon_codes,
         &public_inputs,
         Label::NotTraCeColumn,
     );
-    let constraint_zk_codes =
-        FibonacciConstraint::construct(&trace_zk_codes, &public_inputs, Label::NotTraCeColumn);
-    println!("constraint column:");
-    println!("equal constraint:{:?}", constraint_column.equal_constraint);
+    let constraint_zk_commitments =
+        FibonacciConstraint::construct(&trace_zk_commitments, &public_inputs, Label::NotTraCeColumn);
+    println!("\n constraint column:");
+    println!("relation constraint:{:?}", constraints.relation_constraint);
     println!(
         "first input constraint:{:?}",
-        constraint_column.first_input_constraint
+        constraints.first_input_constraint
     );
     println!(
         "second input constraint:{:?}",
-        constraint_column.second_input_constraint
+        constraints.second_input_constraint
     );
     println!(
         "termination input constraint:{:?}",
-        constraint_column.termination_constraint
+        constraints.termination_constraint
     );
     println!(
-        "first permutation constraint:{:?} ",
-        constraint_column.first_permutation_constraint
+        "first copy constraint:{:?} ",
+        constraints.first_copy_constraint
     );
     println!(
-        "second permutation constraint:{:?} \n",
-        constraint_column.second_permutation_constraint
+        "second copy constraint:{:?} \n",
+        constraints.second_copy_constraint
     );
 
     println!("constraint reedsolomon codes:");
     println!(
         "equal constraint:{:?}",
-        constraint_reedsolomon_codes.equal_constraint
+        constraint_reedsolomon_codes.relation_constraint
     );
     println!(
         "first input constraint:{:?}",
@@ -119,47 +116,47 @@ fn main() {
         constraint_reedsolomon_codes.termination_constraint
     );
     println!(
-        "first permutation constraint:{:?} ",
-        constraint_reedsolomon_codes.first_permutation_constraint
+        "first copy constraint:{:?} ",
+        constraint_reedsolomon_codes.first_copy_constraint
     );
     println!(
-        "second permutation constraint:{:?} \n",
-        constraint_reedsolomon_codes.second_permutation_constraint
+        "second copy constraint:{:?} \n",
+        constraint_reedsolomon_codes.second_copy_constraint
     );
 
     println!("constraint zk codes:");
     println!(
         "equal constraint:{:?}",
-        constraint_zk_codes.equal_constraint
+        constraint_zk_commitments.relation_constraint
     );
     println!(
         "first input constraint:{:?}",
-        constraint_zk_codes.first_input_constraint
+        constraint_zk_commitments.first_input_constraint
     );
     println!(
         "second input constraint:{:?}",
-        constraint_zk_codes.second_input_constraint
+        constraint_zk_commitments.second_input_constraint
     );
     println!(
         "termination input constraint:{:?}",
-        constraint_zk_codes.termination_constraint
+        constraint_zk_commitments.termination_constraint
     );
     println!(
         "first permutation constraint:{:?} ",
-        constraint_zk_codes.first_permutation_constraint
+        constraint_zk_commitments.first_copy_constraint
     );
     println!(
         "second permutation constraint:{:?} \n",
-        constraint_zk_codes.second_permutation_constraint
+        constraint_zk_commitments.second_copy_constraint
     );
 
     let mix_alpha = Fr::from(3);
-    let mixed_constraint_columns = constraint_column.mix(&mix_alpha);
+    let mixed_constraint_columns = constraints.mix(&mix_alpha);
     let mixed_constraint_reedsolomon_codes = constraint_reedsolomon_codes.mix(&mix_alpha);
-    let mixed_constraint_zk_codes = constraint_zk_codes.mix(&mix_alpha);
+    let mixed_constraint_zk_codes = constraint_zk_commitments.mix(&mix_alpha);
 
-    let equal_constraint_polys = Column::from(
-        &expanded_domain.ifft(constraint_reedsolomon_codes.equal_constraint.get_raw_ref()),
+    let relation_constraint_polys = Column::from(
+        &expanded_domain.ifft(constraint_reedsolomon_codes.relation_constraint.get_raw_ref()),
     );
     let first_input_constraint_polys = Column::from(
         &expanded_domain.ifft(
@@ -182,24 +179,24 @@ fn main() {
                 .get_raw_ref(),
         ),
     );
-    let first_permutation_constraint_polys = Column::from(
+    let first_copy_constraint_polys = Column::from(
         &expanded_domain.ifft(
             constraint_reedsolomon_codes
-                .first_permutation_constraint
+                .first_copy_constraint
                 .get_raw_ref(),
         ),
     );
     let second_permutation_polys = Column::from(
         &expanded_domain.ifft(
             constraint_reedsolomon_codes
-                .second_permutation_constraint
+                .second_copy_constraint
                 .get_raw_ref(),
         ),
     );
     let mixed_constraint_polys =
         Column::from(&expanded_domain.ifft(mixed_constraint_reedsolomon_codes.get_raw_ref()));
     println!("constraint polys:");
-    println!("equal constraint:{:?}", equal_constraint_polys);
+    println!("equal constraint:{:?}", relation_constraint_polys);
     println!("first input constraint:{:?}", first_input_constraint_polys);
     println!(
         "second input constraint:{:?}",
@@ -211,7 +208,7 @@ fn main() {
     );
     println!(
         "first permutation constraint:{:?} ",
-        first_permutation_constraint_polys
+        first_copy_constraint_polys
     );
     println!(
         "second permutation constraint:{:?}\n",

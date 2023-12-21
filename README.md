@@ -11,6 +11,6 @@ This library only records the learning process of zkp, which currently includes:
         https://eprint.iacr.org/2019/458.pdf
  - **IPA(Inner Product Arguments)** : The implementation of the IPA refers to the Halo paper, which mainly constructs a polynomial commitment that does not require trusted setup   
         https://eprint.iacr.org/2019/1021.pdf  
- - **FFT**
+ - **FFT** : FFT algorithm
  - **STARK by Hand** : Implementing a manual example of Fibonacci in RISC0
         https://dev.risczero.com/proof-system/stark-by-hand
