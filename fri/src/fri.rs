@@ -52,7 +52,7 @@ impl<F: PrimeField> FRI<F> {
 
         let mut transcript = self.init_transcript();
         let (mut proof, codewords) = self.commit(codeword, &mut transcript);
-        
+
         let mut indexs = self.sample_index(
             codewords[1].len(),
             codewords[codewords.len() - 1].len(),
