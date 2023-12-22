@@ -1,10 +1,14 @@
-use ark_ff::PrimeField;
+use ark_ff::{batch_inversion, PrimeField};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Polynomial,
+    Radix2EvaluationDomain,
+};
 use std::{
     fmt::{self, Debug, Formatter},
-    ops::{Add, AddAssign, Mul, Sub},
+    ops::{Add, AddAssign, Div, Mul, Sub},
 };
 
-#[derive(Clone)]
+#[derive(Clone,Default)]
 pub struct Column<F: PrimeField>(Vec<F>);
 
 impl<F: PrimeField> Column<F> {
@@ -43,6 +47,42 @@ impl<F: PrimeField> Column<F> {
             c.push(x.mul(a))
         }
         Self(c)
+    }
+
+    pub fn deep_quotient(&self, point: &F, eval: &F, domain: &Radix2EvaluationDomain<F>) -> Self {
+        let numerator = self.subtract_scalar(eval);
+        let denominator: Vec<F> = domain.elements().into_iter().map(|x| x - point).collect();
+        let denominator = Column::from(&denominator);
+        numerator.div(&denominator)
+
+        // let mut poly = self.clone();
+        // poly.0[0].sub_assign(eval);
+        // let numerator = DensePolynomial::from_coefficients_slice(poly.get_raw_ref());
+
+        // let denominator = DensePolynomial::from_coefficients_slice(&[point.neg(),F::ONE]);
+        // let res =  numerator.div(&denominator);
+
+        // Self(res.coeffs)
+    }
+
+    pub fn deep_quotient_1(&self, point: &F, eval: &F, domain: &Radix2EvaluationDomain<F>) -> Self {
+        // let numerator = self.subtract_scalar(eval);
+        // let denominator: Vec<F> = domain.elements().into_iter().map(|x| x -point).collect();
+        // let denominator =  Column::from(&denominator);
+        // numerator.div(&denominator)
+
+        let coeffs = domain.ifft(self.get_raw_ref());
+        //  coeffs[0].sub_assign(eval);
+        let poly = DensePolynomial::from_coefficients_vec(coeffs);
+        let x = DensePolynomial::from_coefficients_slice(&[*eval]);
+        let poly = poly.sub(&x);
+
+        // let numerator = DensePolynomial::from_coefficients_slice(poly.get_raw_ref());
+
+        let denominator = DensePolynomial::from_coefficients_slice(&[point.neg(), F::ONE]);
+        let res = poly.div(&denominator);
+
+        Self(res.coeffs)
     }
 }
 
@@ -91,6 +131,17 @@ impl<'a, F: PrimeField> Mul<&'a Column<F>> for Column<F> {
             r.push(x.mul(y))
         }
         Self(r)
+    }
+}
+
+impl<'a, F: PrimeField> Div<&'a Column<F>> for Column<F> {
+    type Output = Self;
+
+    fn div(self, rhs: &Self) -> Self::Output {
+        let mut inv_values = rhs.get_raw();
+        batch_inversion(&mut inv_values);
+        let rhs = Self::from(&inv_values);
+        self.mul(&rhs)
     }
 }
 

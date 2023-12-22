@@ -1,8 +1,9 @@
 use ark_ff::PrimeField;
-use std::{ops::*, fmt::Formatter};
-use std::fmt::{Debug, self};
+use std::fmt::{self, Debug};
+use std::{fmt::Formatter, ops::*};
 
 use crate::column::{Column, Label};
+use crate::utils::mix;
 
 pub struct FibonacciConstraint<F: PrimeField> {
     pub relation_constraint: Column<F>,
@@ -64,27 +65,12 @@ impl<F: PrimeField> FibonacciConstraint<F> {
     }
 
     pub fn mix(&self, alpha: &F) -> Column<F> {
-        let mut res = self.relation_constraint.clone();
 
-        res.add_assign(&self.first_input_constraint.scale(alpha));
-
-        let alp_pow_2 = alpha.mul(alpha);
-        res.add_assign(&&self.second_input_constraint.scale(&alp_pow_2));
-
-        let alp_pow_3 = alp_pow_2.mul(alpha);
-        res.add_assign(&&&self.termination_constraint.scale(&alp_pow_3));
-
-        let alp_pow_4 = alp_pow_3.mul(alpha);
-        res.add_assign(&&&&self.first_copy_constraint.scale(&alp_pow_4));
-
-        let alp_pow_5 = alp_pow_4.mul(alpha);
-        res.add_assign(&&&&&self.second_copy_constraint.scale(&alp_pow_5));
-
-        res
+        mix(&[self.relation_constraint.clone(),self.first_input_constraint.clone(),self.second_input_constraint.clone(),self.termination_constraint.clone(),self.first_copy_constraint.clone(),self.second_copy_constraint.clone()], alpha)
     }
 }
 
-impl<F: PrimeField> Debug for FibonacciConstraint<F>{
+impl<F: PrimeField> Debug for FibonacciConstraint<F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("relation: [")?;
         for (i, x) in self.relation_constraint.get_raw_ref().iter().enumerate() {
@@ -109,7 +95,12 @@ impl<F: PrimeField> Debug for FibonacciConstraint<F>{
         f.write_str("] \n")?;
 
         f.write_str("second input: [")?;
-        for (i, x) in self.second_input_constraint.get_raw_ref().iter().enumerate() {
+        for (i, x) in self
+            .second_input_constraint
+            .get_raw_ref()
+            .iter()
+            .enumerate()
+        {
             let v = x.into_bigint().to_string();
             if i != self.second_input_constraint.len() - 1 {
                 f.write_fmt(format_args!("{},", v))?;

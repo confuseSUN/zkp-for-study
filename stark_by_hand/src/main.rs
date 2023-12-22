@@ -1,16 +1,21 @@
 use ark_ff::FftField;
+use ark_poly::Polynomial;
 use ark_poly::{
     univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
 };
 use column::Label;
 use field::Fr;
+use std::ops::*;
 
 use crate::column::Column;
 use crate::fibonacci_constraint::FibonacciConstraint;
+use crate::utils::mix;
 
 pub mod column;
 pub mod fibonacci_constraint;
 pub mod field;
+pub mod utils;
+pub mod fri;
 
 fn main() {
     let public_inputs = vec![Fr::from(24), Fr::from(30), Fr::from(28)];
@@ -46,9 +51,9 @@ fn main() {
     let expanded_domain = Radix2EvaluationDomain::<Fr>::new(8 * 4).unwrap();
     for coeffs in trace_polys.iter() {
         let poly = DensePolynomial::from_coefficients_slice(coeffs.get_raw_ref());
-        let code = Column::from(&poly.evaluate_over_domain(expanded_domain).evals);
-        println!("{:?}", code);
-        trace_reedsolomon_codes.push(code);
+        let evals = Column::from(&poly.evaluate_over_domain(expanded_domain).evals);
+        println!("{:?}", evals);
+        trace_reedsolomon_codes.push(evals);
     }
 
     println!("\n The zk commitments of trace polynomial:");
@@ -56,9 +61,9 @@ fn main() {
     let expanded_coset_domain = expanded_domain.get_coset(Fr::GENERATOR).unwrap();
     for coeffs in trace_polys.iter() {
         let poly = DensePolynomial::from_coefficients_slice(coeffs.get_raw_ref());
-        let code = Column::from(&poly.evaluate_over_domain(expanded_coset_domain).evals);
-        println!("{:?}", code);
-        trace_zk_commitments.push(code);
+        let evals = Column::from(&poly.evaluate_over_domain(expanded_coset_domain).evals);
+        println!("{:?}", evals);
+        trace_zk_commitments.push(evals);
     }
 
     // let x = expanded_coset_domain.ifft(&trace_zk_codes[0]);
@@ -66,26 +71,32 @@ fn main() {
     // let r = p.evaluate_over_domain(domain);
     // println("", &r.evals);
 
-    let constraints =
-        FibonacciConstraint::construct(&trace, &public_inputs, Label::TraCeColumn);
+    let constraints = FibonacciConstraint::construct(&trace, &public_inputs, Label::TraCeColumn);
     let constraint_reedsolomon_codes = FibonacciConstraint::construct(
         &trace_reedsolomon_codes,
         &public_inputs,
         Label::NotTraCeColumn,
     );
-    let constraint_zk_commitments =
-        FibonacciConstraint::construct(&trace_zk_commitments, &public_inputs, Label::NotTraCeColumn);
-    println!("\n constraints: \n{:?}",constraints);
-    println!("constraint reedsolomon codes:\n{:?}",constraints);
-    println!("constraint zk commitments:\n{:?}",constraints);
+    let constraint_zk_commitments = FibonacciConstraint::construct(
+        &trace_zk_commitments,
+        &public_inputs,
+        Label::NotTraCeColumn,
+    );
+    println!("\n constraints: \n{:?}", constraints);
+    println!("constraint reedsolomon codes:\n{:?}", constraints);
+    println!("constraint zk commitments:\n{:?}", constraints);
 
     let mix_alpha = Fr::from(3);
-    let mixed_constraint_columns = constraints.mix(&mix_alpha);
-    let mixed_constraint_reedsolomon_codes = constraint_reedsolomon_codes.mix(&mix_alpha);
-    let mixed_constraint_zk_codes = constraint_zk_commitments.mix(&mix_alpha);
+    let mixed_constraint_column = constraints.mix(&mix_alpha);
+    let mixed_constraint_reedsolomon_code = constraint_reedsolomon_codes.mix(&mix_alpha);
+    let mixed_constraint_zk_commitment = constraint_zk_commitments.mix(&mix_alpha);
 
     let relation_constraint_polys = Column::from(
-        &expanded_domain.ifft(constraint_reedsolomon_codes.relation_constraint.get_raw_ref()),
+        &expanded_domain.ifft(
+            constraint_reedsolomon_codes
+                .relation_constraint
+                .get_raw_ref(),
+        ),
     );
     let first_input_constraint_polys = Column::from(
         &expanded_domain.ifft(
@@ -123,7 +134,7 @@ fn main() {
         ),
     );
     let mixed_constraint_polys =
-        Column::from(&expanded_domain.ifft(mixed_constraint_reedsolomon_codes.get_raw_ref()));
+        Column::from(&expanded_domain.ifft(mixed_constraint_reedsolomon_code.get_raw_ref()));
     println!("constraint polys:");
     println!("equal constraint:{:?}", relation_constraint_polys);
     println!("first input constraint:{:?}", first_input_constraint_polys);
@@ -147,9 +158,66 @@ fn main() {
     println!("mixed constraint:{:?} \n", mixed_constraint_polys);
 
     let z_x = domain.vanishing_polynomial();
-    let z_x_reedsolomon_codes =
+    let z_x_reedsolomon_code =
         Column::from(&z_x.clone().evaluate_over_domain(expanded_domain).evals);
-    let z_x_zk_codes = Column::from(&z_x.evaluate_over_domain(expanded_coset_domain).evals);
-    println!("zx reedsolomon codes:{:?}", z_x_reedsolomon_codes);
-    println!("zx zk codes:{:?} \n", z_x_zk_codes);
+    let z_x_zk_commitment = Column::from(&z_x.evaluate_over_domain(expanded_coset_domain).evals);
+    println!("zx reedsolomon code:{:?}", z_x_reedsolomon_code);
+    println!("zx zk commitment:{:?} \n", z_x_zk_commitment);
+
+    // let mut  z_x_zk_commitment_inner = z_x_zk_commitment.get_raw();
+    //  batch_inversion(&mut z_x_zk_commitment_inner);
+    //  let z_x_zk_commitment_inv = Column::from(&z_x_zk_commitment_inner);
+    //  println!("the inversion of zx zk commitment:{:?} \n", z_x_zk_commitment_inv);
+
+    let validity_poly_evals = mixed_constraint_zk_commitment.div(&z_x_zk_commitment);
+
+    println!("validity_poly_evals:{:?} \n", validity_poly_evals);
+
+    let validity_poly_coeffs =
+        Column::from(&expanded_coset_domain.ifft(validity_poly_evals.get_raw_ref()));
+    println!("validity_poly_coeffs:{:?} \n", validity_poly_coeffs);
+
+    let deep_test_point = Fr::from(93);
+
+    let eval = DensePolynomial::from_coefficients_slice(trace_polys[0].get_raw_ref())
+        .evaluate(&deep_test_point);
+    let deep_poly1_evals =
+        trace_zk_commitments[0].deep_quotient(&deep_test_point, &eval, &expanded_coset_domain);
+    let deep_poly2_evals = Column::from_u64(&[
+        19, 74, 82, 13, 48, 30, 17, 58, 93, 63, 64, 42, 45, 10, 21, 71, 1, 52, 72, 71, 60, 10, 8,
+        44, 41, 5, 14, 16, 49, 15, 78, 41,
+    ]);
+    let deep_poly3_evals = Column::from_u64(&[
+        84, 63, 89, 93, 75, 36, 11, 80, 44, 23, 40, 11, 80, 33, 38, 50, 72, 33, 35, 78, 8, 8, 86,
+        36, 9, 25, 88, 95, 65, 22, 50, 91,
+    ]);
+
+    let eval = DensePolynomial::from_coefficients_slice(trace_polys[3].get_raw_ref())
+        .evaluate(&deep_test_point);
+    let deep_poly4_evals =
+        trace_zk_commitments[3].deep_quotient(&deep_test_point, &eval, &expanded_coset_domain);
+
+    let eval = DensePolynomial::from_coefficients_slice(trace_polys[4].get_raw_ref())
+        .evaluate(&deep_test_point);
+    let deep_poly5_evals =
+        trace_zk_commitments[4].deep_quotient(&deep_test_point, &eval, &expanded_coset_domain);
+
+    let eval = DensePolynomial::from_coefficients_slice(trace_polys[5].get_raw_ref())
+        .evaluate(&deep_test_point);
+    let deep_poly6_evals =
+        trace_zk_commitments[5].deep_quotient(&deep_test_point, &eval, &expanded_coset_domain);
+
+        let eval = DensePolynomial::from_coefficients_slice(validity_poly_coeffs.get_raw_ref())
+        .evaluate(&deep_test_point);
+    let deep_poly7_evals =
+        validity_poly_evals.deep_quotient(&deep_test_point, &eval, &expanded_coset_domain);
+
+        println!("{:?}",expanded_domain.ifft(deep_poly7_evals.get_raw_ref()));
+
+        let fri_input = mix(&[
+            deep_poly1_evals,deep_poly2_evals,deep_poly3_evals,deep_poly4_evals,deep_poly5_evals,deep_poly6_evals,deep_poly7_evals
+        ], &Fr::from(21));
+
+        println!("{:?}",expanded_domain.ifft(fri_input.get_raw_ref()));
+
 }
