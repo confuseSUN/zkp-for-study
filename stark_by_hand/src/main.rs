@@ -8,7 +8,7 @@ use field::Fr;
 use std::ops::*;
 use utils::vec_div;
 
-use crate::utils::{deep_quotient, mix};
+use crate::utils::{deep_quotient, deep_quotient_two_points, mix};
 
 pub mod fibonacci_constraint;
 pub mod field;
@@ -101,6 +101,7 @@ fn main() {
     // println!("validity_poly_coeffs:{:?} ", validity_poly_coeffs);
 
     let deep_test_point = Fr::from(93);
+    let deep_test_point_forward = deep_test_point.mul(&domain.group_gen_inv());
 
     let eval = DensePolynomial::from_coefficients_slice(&trace_polys[0]).evaluate(&deep_test_point);
     let deep_poly1_evals = deep_quotient(
@@ -109,20 +110,28 @@ fn main() {
         &eval,
         &expanded_coset_domain,
     );
-    let deep_poly2_evals = vec![
-        19, 74, 82, 13, 48, 30, 17, 58, 93, 63, 64, 42, 45, 10, 21, 71, 1, 52, 72, 71, 60, 10, 8,
-        44, 41, 5, 14, 16, 49, 15, 78, 41,
-    ]
-    .iter()
-    .map(|x| Fr::from(*x))
-    .collect::<Vec<_>>();
-    let deep_poly3_evals = vec![
-        84, 63, 89, 93, 75, 36, 11, 80, 44, 23, 40, 11, 80, 33, 38, 50, 72, 33, 35, 78, 8, 8, 86,
-        36, 9, 25, 88, 95, 65, 22, 50, 91,
-    ]
-    .iter()
-    .map(|x| Fr::from(*x))
-    .collect::<Vec<_>>();
+
+    let eval0 =
+        DensePolynomial::from_coefficients_slice(&trace_polys[1]).evaluate(&deep_test_point);
+    let eval1 = DensePolynomial::from_coefficients_slice(&trace_polys[1])
+        .evaluate(&deep_test_point_forward);
+    let deep_poly2_evals = deep_quotient_two_points(
+        &trace_zk_commitments[1],
+        &[deep_test_point, deep_test_point_forward],
+        &[eval0, eval1],
+        &expanded_coset_domain,
+    );
+
+    let eval0 =
+        DensePolynomial::from_coefficients_slice(&trace_polys[2]).evaluate(&deep_test_point);
+    let eval1 = DensePolynomial::from_coefficients_slice(&trace_polys[2])
+        .evaluate(&deep_test_point_forward);
+    let deep_poly3_evals = deep_quotient_two_points(
+        &trace_zk_commitments[2],
+        &[deep_test_point, deep_test_point_forward],
+        &[eval0, eval1],
+        &expanded_coset_domain,
+    );
 
     let eval = DensePolynomial::from_coefficients_slice(&trace_polys[3]).evaluate(&deep_test_point);
     let deep_poly4_evals = deep_quotient(

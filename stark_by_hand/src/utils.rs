@@ -1,5 +1,9 @@
+use std::ops::{Div, SubAssign};
+
 use ark_ff::{batch_inversion, PrimeField};
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{
+    univariate::DensePolynomial, DenseUVPolynomial, EvaluationDomain, Radix2EvaluationDomain,
+};
 
 pub fn vec_add<F: PrimeField>(a: &[F], b: &[F]) -> Vec<F> {
     assert_eq!(a.len(), b.len());
@@ -43,13 +47,31 @@ pub fn deep_quotient<F: PrimeField>(
     let numerator = poly.iter().map(|x| x.sub(eval)).collect::<Vec<_>>();
     let denominator: Vec<F> = domain.elements().into_iter().map(|x| x - point).collect();
     vec_div(&numerator, &denominator)
+}
 
-    // let mut poly = self.clone();
-    // poly.0[0].sub_assign(eval);
-    // let numerator = DensePolynomial::from_coefficients_slice(poly.get_raw_ref());
+pub fn deep_quotient_two_points<F: PrimeField>(
+    poly: &[F],
+    point: &[F],
+    eval: &[F],
+    domain: &Radix2EvaluationDomain<F>,
+) -> Vec<F> {
+    assert_eq!(point.len(), 2);
+    assert_eq!(eval.len(), 2);
 
-    // let denominator = DensePolynomial::from_coefficients_slice(&[point.neg(),F::ONE]);
-    // let res =  numerator.div(&denominator);
+    let coeffs = domain.ifft(&poly);
+    let mut numerator = DensePolynomial::from_coefficients_slice(&coeffs);
 
-    // Self(res.coeffs)
+    let a = eval[1].sub(eval[0]).div(point[1].sub(point[0]));
+    let b = eval[0].sub(a.mul(point[0]));
+    let interpolation = DensePolynomial::from_coefficients_slice(&[b, a]);
+    let denominator = DensePolynomial::from_coefficients_slice(&[
+        point[0].mul(&point[1]),
+        (point[0].add(&point[1])).neg(),
+        F::ONE,
+    ]);
+
+    numerator.sub_assign(&interpolation);
+    numerator = numerator.div(&denominator);
+
+    domain.fft(&numerator.coeffs)
 }
