@@ -12,7 +12,6 @@ use crate::utils::{deep_quotient, deep_quotient_two_points, mix};
 
 pub mod fibonacci_constraint;
 pub mod field;
-pub mod traits;
 pub mod utils;
 
 fn main() {
@@ -37,7 +36,7 @@ fn main() {
         control_column_3.iter().map(|x| Fr::from(*x)).collect(),
     ];
 
-    // 2. Constructing Trace Polynomials
+    // 2. Constructing Trace Polynomials.
 
     // println!("The six trace polynomials:");
     let mut trace_polys = Vec::new();
