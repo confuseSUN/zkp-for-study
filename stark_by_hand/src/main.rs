@@ -15,6 +15,7 @@ pub mod field;
 pub mod utils;
 
 fn main() {
+    pub const INV_RATE: usize = 4;
     let public_inputs = vec![Fr::from(24), Fr::from(30), Fr::from(28)];
 
     // 1. The Execution Trace with padding.
@@ -51,7 +52,7 @@ fn main() {
 
     //  println!("\n The reedsolomon codes of trace polynomial:");
     let mut trace_reedsolomon_codes = Vec::new();
-    let expanded_domain = Radix2EvaluationDomain::<Fr>::new(trace[0].len() * 4).unwrap();
+    let expanded_domain = Radix2EvaluationDomain::<Fr>::new(trace[0].len() * INV_RATE).unwrap();
     for coeffs in trace_polys.iter() {
         let evals = expanded_domain.fft(coeffs);
         // println!("{:?} \n", evals);
